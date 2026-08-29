@@ -1,0 +1,11 @@
+{
+  "name": "agent-proof",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev -- --host 127.0.0.1",
+    "test": "npm --prefix frontend test",
+    "lint": "npm --prefix frontend run lint",
+    "build": "npm --prefix frontend run build"
+  }
+}

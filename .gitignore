@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.python/
+.pytest_cache/
+.ruff_cache/
+.uv-cache/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+frontend/dist/
+frontend/node_modules/
+node_modules/
+
+artifacts/*
+!artifacts/.gitkeep
