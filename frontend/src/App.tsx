@@ -24,11 +24,10 @@ type LoadState =
   | { status: "ready"; health: Health; rubric: Rubric }
   | { status: "error"; message: string };
 
-const workflow = [
-  ["01", "Understand intent", "Extract the behavior the patch must preserve."],
-  ["02", "Freeze evidence", "Keep original tests outside the patch's control."],
-  ["03", "Challenge the patch", "Generate and execute independent adversarial checks."],
-  ["04", "Prove the verdict", "Return reproducible evidence for human review."],
+const proofContract = [
+  ["01", "Preserve intent", "Compare the patch against the original task."],
+  ["02", "Challenge behavior", "Generate checks the patch author did not control."],
+  ["03", "Return evidence", "Show commands, outputs, and a reproducible verdict."],
 ] as const;
 
 async function loadFoundation(): Promise<{ health: Health; rubric: Rubric }> {
@@ -68,102 +67,195 @@ export default function App() {
     };
   }, []);
 
+  const connectionLabel =
+    state.status === "ready"
+      ? `Backend connected · v${state.health.version}`
+      : state.status === "error"
+        ? "Backend unavailable"
+        : "Connecting to backend";
+
   return (
-    <main>
-      <nav className="nav shell" aria-label="Primary navigation">
-        <a className="brand" href="#top" aria-label="AgentProof home">
-          <span className="brand-mark">AP</span>
-          <span>AgentProof</span>
+    <main className="app-shell">
+      <header className="topbar">
+        <a className="brand" href="#workspace" aria-label="AgentProof workspace">
+          <span className="brand-mark" aria-hidden="true">
+            AP
+          </span>
+          <span>
+            AgentProof
+            <small>Local verification workspace</small>
+          </span>
         </a>
         <span className={`connection connection-${state.status}`}>
           <span className="connection-dot" aria-hidden="true" />
-          {state.status === "ready"
-            ? `Backend connected · v${state.health.version}`
-            : state.status === "error"
-              ? "Backend unavailable"
-              : "Checking local backend"}
+          {connectionLabel}
         </span>
-      </nav>
+      </header>
 
-      <section className="hero shell" id="top">
-        <div className="eyebrow">Independent verification for agent-written code</div>
-        <h1>
-          Do not trust <em>“done.”</em>
-          <br />
-          Make the patch prove it.
-        </h1>
-        <p className="hero-copy">
-          AgentProof checks whether an AI-generated change preserved the task, the tests, and the
-          truth behind its completion claims—before a human approves the merge.
-        </p>
-        <div className="hero-actions">
-          <button type="button" disabled>
-            Verify a patch <span>Phase 2</span>
-          </button>
-          <a href="#evaluation">See evaluation contract</a>
-        </div>
-      </section>
+      <div className="workspace" id="workspace">
+        <section className="page-heading" aria-labelledby="page-title">
+          <div>
+            <p className="kicker">New verification</p>
+            <h1 id="page-title">Review an agent-generated change</h1>
+            <p>
+              Provide the original task, repository, and candidate patch. AgentProof will try to
+              disprove the completion claim before a human approves it.
+            </p>
+          </div>
+          <span className="phase-badge">Phase 1 · Foundation</span>
+        </section>
 
-      <section className="workflow shell" aria-labelledby="workflow-heading">
-        <div className="section-heading">
-          <span>Verification workflow</span>
-          <h2 id="workflow-heading">A second opinion that has to show its work.</h2>
-        </div>
-        <div className="workflow-grid">
-          {workflow.map(([number, title, body]) => (
-            <article key={number}>
-              <span className="step-number">{number}</span>
-              <h3>{title}</h3>
-              <p>{body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="evaluation shell" id="evaluation" aria-labelledby="evaluation-heading">
-        <div className="section-heading">
-          <span>Model selection</span>
-          <h2 id="evaluation-heading">Correctness wins. Speed breaks ties.</h2>
-          <p>
-            Every candidate receives identical authentic patches, prompts, limits, and deterministic
-            settings. A serious false-safe result is disqualifying.
-          </p>
-        </div>
-
-        {state.status === "ready" ? (
-          <div className="evaluation-panel">
-            <div className="candidate-list" aria-label="Model candidates">
-              {state.rubric.candidates.map((candidate, index) => (
-                <div key={candidate}>
-                  <span>0{index + 1}</span>
-                  <strong>{candidate}</strong>
-                </div>
-              ))}
+        <div className="content-grid">
+          <section className="review-card" aria-labelledby="review-heading">
+            <div className="card-heading">
+              <div>
+                <p className="card-kicker">Verification inputs</p>
+                <h2 id="review-heading">Candidate change</h2>
+              </div>
+              <span>Inputs stay local</span>
             </div>
-            <div className="rubric-list">
-              {state.rubric.categories.map((category) => (
-                <div className="rubric-row" key={category.key}>
-                  <div>
+
+            <form>
+              <label htmlFor="repository">
+                Repository path
+                <input
+                  id="repository"
+                  name="repository"
+                  placeholder="/path/to/repository"
+                  type="text"
+                />
+              </label>
+
+              <label htmlFor="task">
+                Original task or issue
+                <textarea
+                  id="task"
+                  name="task"
+                  placeholder="Describe what the coding agent was asked to change…"
+                  rows={4}
+                />
+              </label>
+
+              <label htmlFor="patch">
+                Candidate patch
+                <textarea
+                  className="code-input"
+                  id="patch"
+                  name="patch"
+                  placeholder="Paste a unified diff or select a local commit…"
+                  rows={8}
+                />
+              </label>
+
+              <label htmlFor="trace">
+                Agent trace <span>Optional</span>
+                <input
+                  id="trace"
+                  name="trace"
+                  placeholder="Paste or select the agent's execution trace"
+                  type="text"
+                />
+              </label>
+
+              <div className="form-footer">
+                <button type="button" disabled>
+                  Start verification
+                </button>
+                <p>Verification execution becomes available in Phase 2.</p>
+              </div>
+            </form>
+          </section>
+
+          <aside className="side-rail" aria-label="Verification context">
+            <section className="status-card" aria-labelledby="status-heading">
+              <div className="card-heading compact">
+                <div>
+                  <p className="card-kicker">Environment</p>
+                  <h2 id="status-heading">System status</h2>
+                </div>
+              </div>
+              <dl>
+                <div>
+                  <dt>API</dt>
+                  <dd className={`status-value status-${state.status}`}>{connectionLabel}</dd>
+                </div>
+                <div>
+                  <dt>Verification engine</dt>
+                  <dd>Phase 2</dd>
+                </div>
+                <div>
+                  <dt>Approval policy</dt>
+                  <dd>Human required</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="contract-card" aria-labelledby="contract-heading">
+              <div className="card-heading compact">
+                <div>
+                  <p className="card-kicker">Proof contract</p>
+                  <h2 id="contract-heading">What a verdict must show</h2>
+                </div>
+              </div>
+              <ol>
+                {proofContract.map(([number, title, body]) => (
+                  <li key={number}>
+                    <span>{number}</span>
+                    <div>
+                      <strong>{title}</strong>
+                      <p>{body}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </aside>
+        </div>
+
+        <section className="evaluation" aria-labelledby="evaluation-heading">
+          <div className="section-heading">
+            <div>
+              <p className="card-kicker">Model selection</p>
+              <h2 id="evaluation-heading">Evaluation contract</h2>
+            </div>
+            <p>
+              Identical patches, prompts, limits, and deterministic settings. Correctness is the
+              gate; speed and resource use break ties.
+            </p>
+          </div>
+
+          {state.status === "ready" ? (
+            <div className="evaluation-grid">
+              <div className="candidate-list" aria-label="Model candidates">
+                <p className="list-label">Candidate models</p>
+                {state.rubric.candidates.map((candidate, index) => (
+                  <div key={candidate}>
+                    <span>0{index + 1}</span>
+                    <strong>{candidate}</strong>
+                  </div>
+                ))}
+              </div>
+              <div className="rubric-list">
+                <p className="list-label">Weighted score</p>
+                {state.rubric.categories.map((category) => (
+                  <div className="rubric-row" key={category.key}>
                     <span>{category.label}</span>
                     <strong>{category.weight}%</strong>
                   </div>
-                  <div className="meter" aria-hidden="true">
-                    <span style={{ width: `${category.weight}%` }} />
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="state-card" role={state.status === "error" ? "alert" : "status"}>
-            {state.status === "error" ? state.message : "Loading the evaluation contract…"}
-          </div>
-        )}
-      </section>
+          ) : (
+            <div className="state-card" role={state.status === "error" ? "alert" : "status"}>
+              {state.status === "error" ? state.message : "Loading the evaluation contract…"}
+            </div>
+          )}
+        </section>
+      </div>
 
-      <footer className="shell">
-        <span>Phase 1 · Reproducible foundation</span>
-        <span>Local-first · Human-approved · Evidence-backed</span>
+      <footer>
+        <span>AgentProof · Local-first patch verification</span>
+        <span>Reproducible evidence · Human approval</span>
       </footer>
     </main>
   );

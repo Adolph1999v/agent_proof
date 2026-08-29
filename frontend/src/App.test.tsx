@@ -33,11 +33,12 @@ describe("AgentProof foundation", () => {
     render(<App />);
 
     expect(
-      screen.getByRole("heading", { name: /do not trust “done.” make the patch prove it/i }),
+      screen.getByRole("heading", { name: /review an agent-generated change/i }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /start verification/i })).toBeDisabled();
 
     await waitFor(() => {
-      expect(screen.getByText("Backend connected · v0.1.0")).toBeInTheDocument();
+      expect(screen.getAllByText("Backend connected · v0.1.0")).toHaveLength(2);
     });
 
     expect(screen.getByText("Qwen3.6 27B Q6")).toBeInTheDocument();
@@ -51,6 +52,6 @@ describe("AgentProof foundation", () => {
     render(<App />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Connection refused");
-    expect(screen.getByRole("button", { name: /verify a patch/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /start verification/i })).toBeDisabled();
   });
 });

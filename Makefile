@@ -12,7 +12,7 @@ FRONTEND_PORT ?= 5173
 help:
 	@echo "AgentProof commands"
 	@echo "  make setup          Install isolated Python and frontend dependencies"
-	@echo "  make dev            Run backend and frontend development servers"
+	@echo "  make dev            Start both services and open AgentProof in the browser"
 	@echo "  make test           Run backend and frontend tests"
 	@echo "  make lint           Run Python linting and frontend type checks"
 	@echo "  make build          Build the frontend production bundle"
@@ -29,7 +29,7 @@ lock:
 	UV_CACHE_DIR=$(CURDIR)/.uv-cache uv pip compile pyproject.toml --extra dev --output-file requirements.txt
 
 dev:
-	@$(MAKE) -j2 dev-backend dev-frontend
+	$(PYTHON) scripts/dev.py --backend-port $(BACKEND_PORT) --frontend-port $(FRONTEND_PORT)
 
 dev-backend:
 	$(PYTHON) -m uvicorn agentproof.app:app --app-dir backend --host 127.0.0.1 --port $(BACKEND_PORT) --reload
@@ -48,7 +48,7 @@ test-frontend:
 lint: lint-backend lint-frontend
 
 lint-backend:
-	$(PYTHON) -m ruff check backend
+	$(PYTHON) -m ruff check backend scripts
 
 lint-frontend:
 	cd frontend && npm run lint

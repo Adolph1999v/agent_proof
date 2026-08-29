@@ -43,7 +43,7 @@ make setup
 make dev
 ```
 
-Open `http://127.0.0.1:5173`. The frontend proxies `/api` requests to the local backend on port 8000.
+AgentProof selects available local ports, prints the address, and opens it in your default browser. If the preferred ports are occupied by another project, no extra arguments are required.
 
 You can also run the frontend from the repository root with:
 
@@ -51,7 +51,7 @@ You can also run the frontend from the repository root with:
 npm run dev
 ```
 
-The backend must still be started separately with `make dev-backend` when using that command.
+The backend must still be started separately with `make dev-backend` when using that frontend-only command. `make dev` remains the recommended workflow.
 
 ## Quality gates
 

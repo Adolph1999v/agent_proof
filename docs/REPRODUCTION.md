@@ -19,13 +19,7 @@ make check
 make dev
 ```
 
-Open `http://127.0.0.1:5173` and confirm that the interface reports `Backend connected`.
-
-If those ports are already occupied, choose alternatives without editing the source:
-
-```bash
-make dev BACKEND_PORT=8010 FRONTEND_PORT=5180
-```
+`make dev` automatically selects available local ports, prints the final address, and opens it in the default browser. Confirm that the interface reports `Backend connected`.
 
 ## Clean setup: Windows PowerShell
 
