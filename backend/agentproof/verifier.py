@@ -167,6 +167,10 @@ class DeterministicVerifier:
         run_directory.mkdir(parents=True, exist_ok=False)
         patch_path = run_directory / "candidate.patch"
         patch_path.write_text(request.patch, encoding="utf-8")
+        application_patch_path = patch_path
+        if not request.patch.endswith("\n"):
+            application_patch_path = run_directory / "candidate.application.patch"
+            application_patch_path.write_text(f"{request.patch}\n", encoding="utf-8")
         empty_snapshot = ProtectedSnapshot(
             file_count=0,
             digest=_sha256_text(""),
@@ -213,7 +217,7 @@ class DeterministicVerifier:
                 "--check",
                 "--recount",
                 "--whitespace=nowarn",
-                str(patch_path),
+                str(application_patch_path),
             ],
             timeout_seconds=GIT_TIMEOUT_SECONDS,
         )
@@ -249,7 +253,7 @@ class DeterministicVerifier:
                 "apply",
                 "--recount",
                 "--whitespace=nowarn",
-                str(patch_path),
+                str(application_patch_path),
             ],
             timeout_seconds=GIT_TIMEOUT_SECONDS,
         )
@@ -461,6 +465,7 @@ class DeterministicVerifier:
             repository=str(repository),
             source_commit=source_commit,
             input_digests=digests,
+            patch_normalized=not request.patch.endswith("\n"),
             protected_snapshot_before=snapshot_before,
             protected_snapshot_after=snapshot_after,
             protected_inputs_changed=protected_inputs_changed or [],

@@ -21,6 +21,7 @@ const unsafeReport = {
   run_id: "run-20260829T180000Z-1234abcd",
   verdict: "UNSAFE",
   summary: "The immutable baseline test suite failed after the patch was applied.",
+  patch_normalized: false,
   protected_inputs_changed: [],
   changed_files: [
     { path: "calculator.py", added_lines: 1, deleted_lines: 1, protected: false },

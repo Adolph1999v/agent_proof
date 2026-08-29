@@ -18,11 +18,13 @@ reproducible.
 1. Resolve the user-approved Git root and record its `HEAD` commit.
 2. Create `artifacts/runs/<run-id>/workspace` as an AgentProof-owned local clone.
 3. Hash every existing protected input: test files, `conftest.py`, and pytest configuration.
-4. Run `git apply --check`, then apply the patch only to the clone.
-5. Rehash protected inputs. Any modified or deleted baseline input, or newly introduced pytest
+4. Preserve the exact submitted patch. If a browser paste omitted its terminal newline, record that
+   normalization and create a separate application copy before running `git apply --check`.
+5. Apply the patch only to the clone.
+6. Rehash protected inputs. Any modified or deleted baseline input, or newly introduced pytest
    configuration, is unsafe.
-6. Run the fixed `python -m pytest -q` command in the clone with a user-bounded timeout.
-7. Write `artifacts/runs/<run-id>/report.json` and return the same typed evidence through the API.
+7. Run the fixed `python -m pytest -q` command in the clone with a user-bounded timeout.
+8. Write `artifacts/runs/<run-id>/report.json` and return the same typed evidence through the API.
 
 ## Verdict policy
 

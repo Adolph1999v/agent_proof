@@ -31,6 +31,7 @@ type VerificationReport = {
   run_id: string;
   verdict: "UNSAFE" | "INCONCLUSIVE";
   summary: string;
+  patch_normalized: boolean;
   protected_inputs_changed: string[];
   changed_files: Array<{
     path: string;
@@ -125,6 +126,13 @@ export default function App() {
         : "Connecting to backend";
   const canStartVerification = Boolean(repositoryPath.trim() && task.trim() && patch.trim());
   const report = verification.status === "ready" ? verification.report : null;
+  const failureEvidence = report
+    ? report.patch_check.status === "failed"
+      ? report.patch_check.output_preview
+      : report.test_execution.status === "failed" || report.test_execution.status === "timed_out"
+        ? report.test_execution.output_preview
+        : null
+    : null;
 
   async function startVerification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -348,7 +356,12 @@ export default function App() {
             <div className="evidence-list">
               {(report
                 ? [
-                    ["Patch preflight", readableCheckStatus(report.patch_check.status)],
+                    [
+                      "Patch preflight",
+                      report.patch_check.status === "passed" && report.patch_normalized
+                        ? "Passed · terminal newline restored"
+                        : readableCheckStatus(report.patch_check.status),
+                    ],
                     [
                       "Protected inputs",
                       report.protected_inputs_changed.length
@@ -365,6 +378,13 @@ export default function App() {
                 </div>
               ))}
             </div>
+
+            {failureEvidence ? (
+              <details className="failure-evidence" open>
+                <summary>Command evidence</summary>
+                <pre>{failureEvidence}</pre>
+              </details>
+            ) : null}
 
             <div className="api-readout">
               <span>Local API</span>

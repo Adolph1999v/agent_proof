@@ -739,6 +739,33 @@ textarea:focus {
   line-height: 1.42;
 }
 
+.failure-evidence {
+  margin: 16px 0 0;
+  border: 1px solid rgba(255, 113, 75, 0.17);
+  border-radius: 10px;
+  background: rgba(255, 113, 75, 0.035);
+}
+
+.failure-evidence summary {
+  padding: 10px 11px;
+  color: var(--orange);
+  cursor: pointer;
+  font: 600 9px var(--mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.failure-evidence pre {
+  max-height: 140px;
+  overflow: auto;
+  margin: 0;
+  padding: 0 11px 11px;
+  color: #c9ccc5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 500 9px/1.5 var(--mono);
+}
+
 .api-readout {
   display: grid;
   gap: 5px;

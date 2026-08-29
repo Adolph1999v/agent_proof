@@ -95,6 +95,7 @@ class VerificationReport(BaseModel):
     repository: str
     source_commit: str
     input_digests: InputDigests
+    patch_normalized: bool = False
     protected_snapshot_before: ProtectedSnapshot
     protected_snapshot_after: ProtectedSnapshot
     protected_inputs_changed: list[str]

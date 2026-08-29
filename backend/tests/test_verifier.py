@@ -83,6 +83,32 @@ index 1111111..2222222 100644
     assert json.loads(evidence.read_text(encoding="utf-8"))["run_id"] == report.run_id
 
 
+def test_patch_without_terminal_newline_is_normalized_for_application(
+    sample_repository: Path,
+    tmp_path: Path,
+) -> None:
+    patch = """diff --git a/calculator.py b/calculator.py
+index 1111111..2222222 100644
+--- a/calculator.py
++++ b/calculator.py
+@@ -1,2 +1,3 @@
++\"\"\"Small calculator helpers.\"\"\"
+ def add(left: int, right: int) -> int:
+     return left + right
+""".rstrip("\n")
+    verifier = DeterministicVerifier(artifacts_root=tmp_path / "artifacts" / "runs")
+
+    report = verifier.verify(request_for(sample_repository, patch))
+
+    assert report.verdict == "INCONCLUSIVE"
+    assert report.patch_check.status == "passed"
+    assert report.patch_normalized is True
+    run_directory = tmp_path / "artifacts" / "runs" / report.run_id
+    assert (run_directory / "candidate.patch").read_text(encoding="utf-8") == patch
+    application_patch = run_directory / "candidate.application.patch"
+    assert application_patch.read_text(encoding="utf-8") == f"{patch}\n"
+
+
 def test_patch_that_changes_an_existing_test_is_unsafe(
     sample_repository: Path,
     tmp_path: Path,
