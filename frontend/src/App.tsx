@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 type Health = {
   status: "ok";
@@ -19,9 +19,39 @@ type Rubric = {
   correctness_is_gate: boolean;
 };
 
+type CommandEvidence = {
+  command: string[];
+  status: "passed" | "failed" | "timed_out" | "not_run";
+  exit_code: number | null;
+  duration_ms: number | null;
+  output_preview: string | null;
+};
+
+type VerificationReport = {
+  run_id: string;
+  verdict: "UNSAFE" | "INCONCLUSIVE";
+  summary: string;
+  protected_inputs_changed: string[];
+  changed_files: Array<{
+    path: string;
+    added_lines: number;
+    deleted_lines: number;
+    protected: boolean;
+  }>;
+  patch_check: CommandEvidence;
+  test_execution: CommandEvidence;
+  evidence_path: string;
+};
+
 type LoadState =
   | { status: "loading" }
   | { status: "ready"; health: Health; rubric: Rubric }
+  | { status: "error"; message: string };
+
+type VerificationState =
+  | { status: "idle" }
+  | { status: "running" }
+  | { status: "ready"; report: VerificationReport }
   | { status: "error"; message: string };
 
 const verificationSteps = [
@@ -52,8 +82,22 @@ async function loadFoundation(): Promise<{ health: Health; rubric: Rubric }> {
   };
 }
 
+function readableCheckStatus(status: CommandEvidence["status"]): string {
+  return {
+    passed: "Passed",
+    failed: "Failed",
+    timed_out: "Timed out",
+    not_run: "Not run",
+  }[status];
+}
+
 export default function App() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [repositoryPath, setRepositoryPath] = useState("");
+  const [task, setTask] = useState("");
+  const [patch, setPatch] = useState("");
+  const [trace, setTrace] = useState("");
+  const [verification, setVerification] = useState<VerificationState>({ status: "idle" });
 
   useEffect(() => {
     let active = true;
@@ -79,6 +123,37 @@ export default function App() {
       : state.status === "error"
         ? "Backend unavailable"
         : "Connecting to backend";
+  const canStartVerification = Boolean(repositoryPath.trim() && task.trim() && patch.trim());
+  const report = verification.status === "ready" ? verification.report : null;
+
+  async function startVerification(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canStartVerification || verification.status === "running") return;
+
+    setVerification({ status: "running" });
+    try {
+      const response = await fetch("/api/verifications", {
+        body: JSON.stringify({
+          repository_path: repositoryPath,
+          task,
+          patch,
+          trace: trace || null,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json()) as VerificationReport | { detail?: string };
+      if (!response.ok) {
+        throw new Error("detail" in payload ? payload.detail : "Unable to start verification.");
+      }
+      setVerification({ status: "ready", report: payload as VerificationReport });
+    } catch (error: unknown) {
+      setVerification({
+        status: "error",
+        message: error instanceof Error ? error.message : "Unable to start verification.",
+      });
+    }
+  }
 
   return (
     <main className="app-shell">
@@ -156,7 +231,7 @@ export default function App() {
                 </li>
               ))}
             </ol>
-            <p className="rail-footnote">Phase 1<br />Foundation</p>
+            <p className="rail-footnote">Phase 2<br />Deterministic verifier</p>
           </aside>
 
           <section className="review-card">
@@ -176,15 +251,17 @@ export default function App() {
               </p>
             </div>
 
-            <form>
+            <form onSubmit={startVerification}>
               <div className="field-grid">
                 <label htmlFor="repository">
                   <span>Repository path</span>
                   <input
                     id="repository"
                     name="repository"
+                    onChange={(event) => setRepositoryPath(event.target.value)}
                     placeholder="/path/to/repository"
                     type="text"
+                    value={repositoryPath}
                   />
                 </label>
 
@@ -195,8 +272,10 @@ export default function App() {
                   <input
                     id="trace"
                     name="trace"
+                    onChange={(event) => setTrace(event.target.value)}
                     placeholder="Select the agent's execution trace"
                     type="text"
+                    value={trace}
                   />
                 </label>
               </div>
@@ -206,8 +285,10 @@ export default function App() {
                 <textarea
                   id="task"
                   name="task"
+                  onChange={(event) => setTask(event.target.value)}
                   placeholder="Describe what the coding agent was asked to change…"
                   rows={4}
+                  value={task}
                 />
               </label>
 
@@ -217,17 +298,19 @@ export default function App() {
                   className="code-input"
                   id="patch"
                   name="patch"
+                  onChange={(event) => setPatch(event.target.value)}
                   placeholder="Paste a unified diff or select a local commit…"
                   rows={8}
+                  value={patch}
                 />
               </label>
 
               <div className="form-footer">
-                <button type="button" disabled>
-                  <span>Start verification</span>
+                <button disabled={!canStartVerification || verification.status === "running"} type="submit">
+                  <span>{verification.status === "running" ? "Verifying…" : "Start verification"}</span>
                   <i aria-hidden="true">↗</i>
                 </button>
-                <p>Execution unlocks in Phase 2. Nothing is sent away from this machine.</p>
+                <p>Runs only in an AgentProof-owned local clone. Nothing is sent away.</p>
               </div>
             </form>
           </section>
@@ -235,7 +318,9 @@ export default function App() {
           <aside className="outcome-card" aria-labelledby="outcome-heading">
             <div className="outcome-topline">
               <span>Live state</span>
-              <span className="not-started">Not started</span>
+              <span className={`not-started ${report ? `verdict-${report.verdict.toLowerCase()}` : ""}`}>
+                {verification.status === "running" ? "Running" : report?.verdict ?? "Not started"}
+              </span>
             </div>
 
             <div className="signal-orb" aria-hidden="true">
@@ -243,14 +328,37 @@ export default function App() {
               <i />
             </div>
 
-            <h2 id="outcome-heading">Waiting for a request</h2>
+            <h2 id="outcome-heading">
+              {verification.status === "running"
+                ? "Building disposable evidence"
+                : report?.verdict === "UNSAFE"
+                  ? "Unsafe change detected"
+                  : report
+                    ? "Needs an independent challenge"
+                    : "Waiting for a request"}
+            </h2>
             <p>
-              AgentProof will challenge the patch, not simply summarize it. The final call remains
-              with a human.
+              {verification.status === "error"
+                ? verification.message
+                : report
+                  ? report.summary
+                  : "AgentProof will challenge the patch, not simply summarize it. The final call remains with a human."}
             </p>
 
             <div className="evidence-list">
-              {proofContract.map(([title, body]) => (
+              {(report
+                ? [
+                    ["Patch preflight", readableCheckStatus(report.patch_check.status)],
+                    [
+                      "Protected inputs",
+                      report.protected_inputs_changed.length
+                        ? `${report.protected_inputs_changed.length} protected file(s) changed`
+                        : "No baseline tests or pytest configuration changed",
+                    ],
+                    ["Baseline execution", readableCheckStatus(report.test_execution.status)],
+                  ]
+                : proofContract
+              ).map(([title, body]) => (
                 <div key={title}>
                   <strong>{title}</strong>
                   <span>{body}</span>
@@ -262,6 +370,7 @@ export default function App() {
               <span>Local API</span>
               <strong className={`status-${state.status}`}>{connectionLabel}</strong>
             </div>
+            {report ? <p className="evidence-path">Evidence: {report.evidence_path}</p> : null}
           </aside>
         </section>
 

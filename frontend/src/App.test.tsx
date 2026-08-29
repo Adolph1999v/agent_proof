@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
@@ -15,6 +15,31 @@ const rubric = {
   ],
   total_weight: 100,
   correctness_is_gate: true,
+};
+
+const unsafeReport = {
+  run_id: "run-20260829T180000Z-1234abcd",
+  verdict: "UNSAFE",
+  summary: "The immutable baseline test suite failed after the patch was applied.",
+  protected_inputs_changed: [],
+  changed_files: [
+    { path: "calculator.py", added_lines: 1, deleted_lines: 1, protected: false },
+  ],
+  patch_check: {
+    command: ["git", "apply", "--check"],
+    status: "passed",
+    exit_code: 0,
+    duration_ms: 8,
+    output_preview: "",
+  },
+  test_execution: {
+    command: ["python", "-m", "pytest", "-q"],
+    status: "failed",
+    exit_code: 1,
+    duration_ms: 87,
+    output_preview: "1 failed",
+  },
+  evidence_path: "artifacts/runs/run-20260829T180000Z-1234abcd/report.json",
 };
 
 afterEach(() => {
@@ -53,5 +78,40 @@ describe("AgentProof foundation", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Connection refused");
     expect(screen.getByRole("button", { name: /start verification/i })).toBeDisabled();
+  });
+
+  it("submits the user-approved inputs and renders an unsafe deterministic verdict", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(health), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(rubric), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(unsafeReport), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    await screen.findByText("Qwen3.6 27B Q6");
+    fireEvent.change(screen.getByLabelText(/repository path/i), {
+      target: { value: "/tmp/calculator" },
+    });
+    fireEvent.change(screen.getByLabelText(/original task or issue/i), {
+      target: { value: "Keep the calculator correct." },
+    });
+    fireEvent.change(screen.getByLabelText(/^candidate patch/i), {
+      target: { value: "diff --git a/calculator.py b/calculator.py" },
+    });
+
+    const submit = screen.getByRole("button", { name: /start verification/i });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+
+    expect(await screen.findByRole("heading", { name: "Unsafe change detected" })).toBeInTheDocument();
+    expect(screen.getByText("The immutable baseline test suite failed after the patch was applied.")).toBeInTheDocument();
+    expect(screen.getByText("Patch preflight")).toBeInTheDocument();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/verifications",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 });

@@ -50,4 +50,7 @@ Every run will record:
 
 ## Baseline
 
-The Phase 2 baseline will run the repository's existing tests and a simple general-purpose model review without AgentProof's frozen-test comparison, external adversarial tests, or claim-to-evidence validation. Its exact definition will be frozen before final evaluation.
+The Phase 2 baseline is the repository's existing test suite run against the candidate patch without
+AgentProof's immutable-test comparison, disposable-clone evidence, external adversarial tests, or
+claim-to-evidence validation. The current AgentProof verifier adds frozen baseline inputs and a preserved
+report, but deliberately still returns `INCONCLUSIVE` when only the baseline passes.

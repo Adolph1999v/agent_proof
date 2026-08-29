@@ -466,6 +466,17 @@ h1 em {
   letter-spacing: 0.06em;
 }
 
+.not-started.verdict-unsafe {
+  border-color: rgba(255, 113, 75, 0.3);
+  color: var(--orange);
+  background: rgba(255, 113, 75, 0.08);
+}
+
+.not-started.verdict-inconclusive {
+  border-color: rgba(201, 255, 79, 0.2);
+  color: var(--accent);
+}
+
 .review-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 0.74fr);
@@ -757,6 +768,13 @@ textarea:focus {
 
 .api-readout .status-error {
   color: var(--orange);
+}
+
+.evidence-path {
+  overflow-wrap: anywhere;
+  margin: 12px 0 0;
+  color: var(--faint);
+  font: 500 9px/1.5 var(--mono);
 }
 
 .evaluation {
