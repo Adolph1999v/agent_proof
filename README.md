@@ -16,6 +16,7 @@ Phase 2 provides a reproducible deterministic verifier on top of the Phase 1 fou
 - A typed `POST /api/verifications` workflow for a user-approved local Git repository and unified diff.
 - AgentProof-owned disposable Git clones; the source checkout is never patched or tested in place.
 - Immutable snapshots of existing tests, `conftest.py`, and pytest configuration before patch application.
+- Explicit rejection of patches that apply but produce no repository change.
 - A bounded, fixed `python -m pytest -q` baseline adapter and a local JSON evidence report per run.
 
 The Phase 2 adapter intentionally supports pytest repositories only. Local model execution, invariants,
@@ -29,6 +30,9 @@ and adversarial-test generation begin in later phases.
 
 See [docs/DETERMINISTIC_VERIFIER.md](docs/DETERMINISTIC_VERIFIER.md) for the security boundary and
 reproducible evidence schema.
+
+For a reliable manual run, use the maintained case in [evaluation/cases/README.md](evaluation/cases/README.md)
+instead of reconstructing a unified diff by hand.
 
 ## Why a local web application?
 

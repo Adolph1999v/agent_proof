@@ -109,6 +109,28 @@ index 1111111..2222222 100644
     assert application_patch.read_text(encoding="utf-8") == f"{patch}\n"
 
 
+def test_patch_that_produces_no_repository_change_is_unsafe(
+    sample_repository: Path,
+    tmp_path: Path,
+) -> None:
+    patch = """diff --git a/calculator.py b/calculator.py
+--- a/calculator.py
++++ b/calculator.py
+@@ -1,2 +1,2 @@
+ def add(left: int, right: int) -> int:
+     return left + right
+"""
+    verifier = DeterministicVerifier(artifacts_root=tmp_path / "artifacts" / "runs")
+
+    report = verifier.verify(request_for(sample_repository, patch))
+
+    assert report.verdict == "UNSAFE"
+    assert report.summary == "The candidate patch produced no repository changes to verify."
+    assert report.patch_check.status == "passed"
+    assert report.test_execution.status == "not_run"
+    assert report.changed_files == []
+
+
 def test_patch_that_changes_an_existing_test_is_unsafe(
     sample_repository: Path,
     tmp_path: Path,
@@ -181,3 +203,47 @@ def test_dirty_source_repository_is_rejected(sample_repository: Path, tmp_path: 
 
     with pytest.raises(VerificationInputError, match="tracked changes"):
         verifier.verify(request_for(sample_repository, "not a patch"))
+
+
+def test_official_safe_patch_fixture_remains_applicable(tmp_path: Path) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    repository = tmp_path / "official-fixture-repository"
+    (repository / "tests").mkdir(parents=True)
+    (repository / "README.md").write_text(
+        (project_root / "README.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (repository / "tests" / "test_smoke.py").write_text(
+        "def test_smoke() -> None:\n    assert True\n",
+        encoding="utf-8",
+    )
+    run_git(repository, "init", "--quiet")
+    run_git(repository, "add", ".")
+    run_git(
+        repository,
+        "-c",
+        "user.name=AgentProof Tests",
+        "-c",
+        "user.email=tests@agentproof.local",
+        "commit",
+        "--quiet",
+        "-m",
+        "Official fixture base",
+    )
+    patch = (project_root / "evaluation/cases/phase2-safe-readme.patch").read_text(
+        encoding="utf-8"
+    )
+    verifier = DeterministicVerifier(artifacts_root=tmp_path / "artifacts" / "runs")
+
+    report = verifier.verify(
+        VerificationRequest(
+            repository_path=str(repository),
+            task="Clarify the AgentProof description without changing behavior.",
+            patch=patch,
+        )
+    )
+
+    assert report.verdict == "INCONCLUSIVE"
+    assert report.patch_check.status == "passed"
+    assert report.test_execution.status == "passed"
+    assert [changed.path for changed in report.changed_files] == ["README.md"]

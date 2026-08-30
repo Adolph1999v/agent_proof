@@ -21,16 +21,17 @@ reproducible.
 4. Preserve the exact submitted patch. If a browser paste omitted its terminal newline, record that
    normalization and create a separate application copy before running `git apply --check`.
 5. Apply the patch only to the clone.
-6. Rehash protected inputs. Any modified or deleted baseline input, or newly introduced pytest
+6. Reject a patch that applies but leaves the clone unchanged; a no-op cannot support a verdict.
+7. Rehash protected inputs. Any modified or deleted baseline input, or newly introduced pytest
    configuration, is unsafe.
-7. Run the fixed `python -m pytest -q` command in the clone with a user-bounded timeout.
-8. Write `artifacts/runs/<run-id>/report.json` and return the same typed evidence through the API.
+8. Run the fixed `python -m pytest -q` command in the clone with a user-bounded timeout.
+9. Write `artifacts/runs/<run-id>/report.json` and return the same typed evidence through the API.
 
 ## Verdict policy
 
 | Verdict | Meaning |
 | --- | --- |
-| `UNSAFE` | Invalid patch, protected-input modification, or failed baseline suite. |
+| `UNSAFE` | Invalid or no-op patch, protected-input modification, or failed baseline suite. |
 | `INCONCLUSIVE` | Baseline passes, times out, cannot run, or no pytest adapter is available. |
 
 No `VERIFIED` verdict exists in this phase. Existing tests can show a concrete regression, but cannot
@@ -49,3 +50,7 @@ filesystem, and network isolation belong behind a later platform adapter.
 Each report records the source commit; SHA-256 digests of the task, patch, and optional trace; protected
 snapshot digests before and after application; changed-file statistics; patch and test command results;
 the deterministic verdict; and the relative evidence path.
+
+The maintained manual case in `evaluation/cases/` contains a complete Git-generated patch and its
+expected Phase 2 result. Using the entire patch matters: deleting its added and removed lines turns it
+into a no-op, while omitting surrounding context can make a handwritten patch inapplicable.

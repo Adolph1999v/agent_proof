@@ -282,6 +282,67 @@ class DeterministicVerifier:
         protected_inputs_changed = _changed_protected_inputs(before_hashes, after_hashes)
         changed_files = self._changed_files(workspace, before_hashes)
 
+        workspace_status = self._run(
+            [
+                "git",
+                "-C",
+                str(workspace),
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+            ],
+            timeout_seconds=GIT_TIMEOUT_SECONDS,
+        )
+        if workspace_status.returncode != 0 or workspace_status.timed_out:
+            return self._write_report(
+                self._report(
+                    run_id=run_id,
+                    request=request,
+                    repository=repository,
+                    source_commit=source_commit,
+                    digests=digests,
+                    snapshot_before=snapshot_before,
+                    snapshot_after=snapshot_after,
+                    verdict="INCONCLUSIVE",
+                    summary="AgentProof could not determine whether the patch changed the clone.",
+                    protected_inputs_changed=protected_inputs_changed,
+                    changed_files=changed_files,
+                    patch_check=patch_check.as_evidence(),
+                    test_execution=CommandEvidence(
+                        status="not_run",
+                        output_preview=(
+                            "Tests were not run because patch-effect inspection failed.\n"
+                            f"{_preview(workspace_status.output)}"
+                        ),
+                    ),
+                ),
+                run_directory,
+            )
+
+        if not workspace_status.output.strip():
+            return self._write_report(
+                self._report(
+                    run_id=run_id,
+                    request=request,
+                    repository=repository,
+                    source_commit=source_commit,
+                    digests=digests,
+                    snapshot_before=snapshot_before,
+                    snapshot_after=snapshot_after,
+                    verdict="UNSAFE",
+                    summary="The candidate patch produced no repository changes to verify.",
+                    changed_files=changed_files,
+                    patch_check=patch_check.as_evidence(),
+                    test_execution=CommandEvidence(
+                        status="not_run",
+                        output_preview=(
+                            "Tests were not run because the candidate patch was a no-op."
+                        ),
+                    ),
+                ),
+                run_directory,
+            )
+
         if protected_inputs_changed:
             return self._write_report(
                 self._report(
