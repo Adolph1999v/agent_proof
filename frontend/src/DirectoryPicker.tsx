@@ -30,10 +30,11 @@ export default function DirectoryPicker({
   open,
 }: DirectoryPickerProps) {
   const [state, setState] = useState<BrowserState>({ status: "loading" });
+  const [history, setHistory] = useState<string[]>([]);
   const closeButton = useRef<HTMLButtonElement>(null);
   const requestSequence = useRef(0);
 
-  async function browse(path: string | null) {
+  async function browse(path: string | null): Promise<boolean> {
     const requestId = ++requestSequence.current;
     setState({ status: "loading" });
     try {
@@ -48,6 +49,7 @@ export default function DirectoryPicker({
       }
       if (requestId === requestSequence.current) {
         setState({ status: "ready", listing: payload });
+        return true;
       }
     } catch (error: unknown) {
       if (requestId === requestSequence.current) {
@@ -57,10 +59,27 @@ export default function DirectoryPicker({
         });
       }
     }
+    return false;
+  }
+
+  async function navigate(path: string | null) {
+    const previousPath = state.status === "ready" ? state.listing.current_path : null;
+    if (await browse(path)) {
+      if (previousPath) setHistory((paths) => [...paths, previousPath]);
+    }
+  }
+
+  async function goBack() {
+    const previousPath = history.at(-1);
+    if (!previousPath) return;
+    if (await browse(previousPath)) {
+      setHistory((paths) => paths.slice(0, -1));
+    }
   }
 
   useEffect(() => {
     if (!open) return;
+    setHistory([]);
     void browse(initialPath.trim() || null);
     closeButton.current?.focus();
     const previousOverflow = document.body.style.overflow;
@@ -77,6 +96,15 @@ export default function DirectoryPicker({
   }, [initialPath, onCancel, open]);
 
   if (!open) return null;
+
+  const visibleDirectories =
+    state.status === "ready"
+      ? state.listing.directories.filter((directory) => !directory.name.startsWith("."))
+      : [];
+  const currentFolderName =
+    state.status === "ready"
+      ? state.listing.current_path.split("/").filter(Boolean).at(-1) || "/"
+      : "";
 
   return (
     <div
@@ -115,33 +143,49 @@ export default function DirectoryPicker({
         {state.status === "ready" ? (
           <>
             <div className="directory-location">
-              <button
-                disabled={!state.listing.parent_path}
-                onClick={() => void browse(state.listing.parent_path)}
-                type="button"
-              >
-                ↑ Parent
-              </button>
-              <code title={state.listing.current_path}>{state.listing.current_path}</code>
+              <div className="directory-navigation">
+                <button
+                  aria-label="Go back one folder"
+                  disabled={!history.length}
+                  onClick={() => void goBack()}
+                  title="Back"
+                  type="button"
+                >
+                  ←
+                </button>
+                <button
+                  aria-label="Go to parent folder"
+                  disabled={!state.listing.parent_path}
+                  onClick={() => void navigate(state.listing.parent_path)}
+                  title="Up one level"
+                  type="button"
+                >
+                  ↑
+                </button>
+              </div>
+              <div className="directory-current" title={state.listing.current_path}>
+                <span aria-hidden="true" className="directory-folder-icon" />
+                <strong>{currentFolderName}</strong>
+              </div>
             </div>
 
             <div className="directory-list">
-              {state.listing.directories.length ? (
-                state.listing.directories.map((directory) => (
+              {visibleDirectories.length ? (
+                visibleDirectories.map((directory) => (
                   <button
                     aria-label={`Open folder ${directory.name}`}
                     className="directory-entry"
                     key={directory.path}
-                    onClick={() => void browse(directory.path)}
+                    onClick={() => void navigate(directory.path)}
                     type="button"
                   >
-                    <span aria-hidden="true">DIR</span>
+                    <span aria-hidden="true" className="directory-folder-icon" />
                     <strong>{directory.name}</strong>
-                    <i aria-hidden="true">→</i>
+                    <i aria-hidden="true">›</i>
                   </button>
                 ))
               ) : (
-                <p className="directory-empty">This folder contains no accessible subfolders.</p>
+                <p className="directory-empty">This folder contains no visible subfolders.</p>
               )}
             </div>
 

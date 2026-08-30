@@ -7,6 +7,7 @@ const rootListing = {
   current_path: "/Users/reviewer",
   parent_path: "/Users",
   directories: [
+    { name: ".cache", path: "/Users/reviewer/.cache" },
     { name: "Projects", path: "/Users/reviewer/Projects" },
     { name: "Downloads", path: "/Users/reviewer/Downloads" },
   ],
@@ -41,9 +42,10 @@ describe("DirectoryPicker", () => {
       />,
     );
 
-    expect(await screen.findByText("/Users/reviewer")).toBeInTheDocument();
+    expect(await screen.findByText("reviewer")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open folder .cache" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open folder Projects" }));
-    expect(await screen.findByText("/Users/reviewer/Projects")).toBeInTheDocument();
+    expect(await screen.findByText("Projects")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Use this folder" }));
 
     expect(onSelect).toHaveBeenCalledWith("/Users/reviewer/Projects");
@@ -78,9 +80,44 @@ describe("DirectoryPicker", () => {
       />,
     );
 
-    await screen.findByText("/Users/reviewer");
-    fireEvent.click(screen.getByRole("button", { name: "↑ Parent" }));
-    expect(await screen.findByText("/Users")).toBeInTheDocument();
+    await screen.findByText("reviewer");
+    fireEvent.click(screen.getByRole("button", { name: "Go to parent folder" }));
+    expect(await screen.findByText("Users")).toBeInTheDocument();
+  });
+
+  it("returns to the previously viewed folder when navigating back", async () => {
+    const projectListing = {
+      current_path: "/Users/reviewer/Projects",
+      parent_path: "/Users/reviewer",
+      directories: [],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(rootListing), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(projectListing), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(rootListing), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <DirectoryPicker
+        initialPath="/Users/reviewer"
+        onCancel={vi.fn()}
+        onSelect={vi.fn()}
+        open
+      />,
+    );
+
+    await screen.findByText("reviewer");
+    expect(screen.getByRole("button", { name: "Go back one folder" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Open folder Projects" }));
+    await screen.findByText("Projects");
+    fireEvent.click(screen.getByRole("button", { name: "Go back one folder" }));
+    expect(await screen.findByText("reviewer")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/api/filesystem/directories",
+      expect.objectContaining({ body: JSON.stringify({ path: "/Users/reviewer" }) }),
+    );
   });
 
   it("recovers from an invalid initial path by opening the home folder", async () => {
@@ -103,7 +140,7 @@ describe("DirectoryPicker", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Path does not exist");
     fireEvent.click(screen.getByRole("button", { name: "Open home folder" }));
-    expect(await screen.findByText("/Users/reviewer")).toBeInTheDocument();
+    expect(await screen.findByText("reviewer")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "/api/filesystem/directories",
