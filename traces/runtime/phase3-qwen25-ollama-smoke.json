@@ -1,0 +1,44 @@
+{
+  "trace_id": "phase3-qwen25-ollama-smoke",
+  "recorded_at": "2026-08-30T19:14:18Z",
+  "purpose": "Submission-demo integration evidence; not a broad model-quality benchmark",
+  "runtime": {
+    "server": "Ollama localhost OpenAI-compatible API",
+    "model": "qwen2.5-coder:7b",
+    "quantization": "Q4_K_M",
+    "temperature": 0,
+    "seed": 42,
+    "automatic_model_discovery": true
+  },
+  "task": "Update greeting(name) so it trims surrounding whitespace and treats a blank name as friend, while preserving the existing greeting format.",
+  "bounded_input": {
+    "changed_application_files": ["greeting.py"],
+    "prompt_tokens": 542,
+    "completion_tokens": 125,
+    "model_duration_ms": 28478
+  },
+  "model_proposal": {
+    "behavior_mode": "change",
+    "summary": "Ensure greeting handles empty string input correctly",
+    "invariants": [
+      "greeting should return 'Hello, friend!' for empty string input"
+    ],
+    "test_code": "import pytest\nfrom greeting import greeting\n\n@pytest.mark.parametrize('name, expected', [\n    ('', 'Hello, friend!'),\n    ('   ', 'Hello, friend!'),\n    ('  John  ', 'Hello, John!'),\n])\ndef test_greeting(name, expected):\n    assert greeting(name) == expected"
+  },
+  "execution": {
+    "baseline": {
+      "status": "failed",
+      "exit_code": 1,
+      "duration_ms": 163
+    },
+    "candidate": {
+      "status": "passed",
+      "exit_code": 0,
+      "duration_ms": 126
+    }
+  },
+  "deterministic_verdict": "VERIFIED",
+  "source_run_id": "run-20260830T191349Z-1acb6dd1",
+  "challenge_id": "challenge-20260830T191349Z-e9a995c9",
+  "redaction_note": "Only synthetic source was used. Absolute local paths were removed."
+}

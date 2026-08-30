@@ -103,8 +103,8 @@ make check
 
 See [docs/REPRODUCTION.md](docs/REPRODUCTION.md) for clean-environment and Windows commands.
 
-The normal quality gate does not download or run a model. With one model already loaded in LM Studio
-on port 1234, the transparent synthetic integration check is:
+The normal quality gate does not download or run a model. With `qwen2.5-coder:7b` available through
+Ollama on port 11434, the transparent synthetic integration check is:
 
 ```bash
 make phase3-smoke

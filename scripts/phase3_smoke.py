@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from agentproof.challenges import IndependentChallengeRunner
+from agentproof.challenges import ChallengeError, IndependentChallengeRunner
 from agentproof.models import IndependentChallengeRequest, VerificationRequest
 from agentproof.verifier import DeterministicVerifier
 
@@ -33,8 +33,12 @@ def _git(repository: Path, *arguments: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model-url", default="http://127.0.0.1:1234/v1")
-    parser.add_argument("--model-name", default="agentproof-qwen3.6-27b")
+    parser.add_argument("--model-url", default="http://127.0.0.1:11434/v1")
+    parser.add_argument(
+        "--model-name",
+        default="auto",
+        help="Loaded model ID, or 'auto' to use the only loaded text-generation model.",
+    )
     arguments = parser.parse_args()
 
     with tempfile.TemporaryDirectory(prefix="agentproof-phase3-") as temporary:
@@ -67,14 +71,18 @@ def main() -> int:
         verification = verifier.verify(
             VerificationRequest(repository_path=str(repository), task=TASK, patch=PATCH)
         )
-        challenge = IndependentChallengeRunner(verifier).run(
-            IndependentChallengeRequest(
-                run_id=verification.run_id,
-                task=TASK,
-                model_url=arguments.model_url,
-                model_name=arguments.model_name,
+        try:
+            challenge = IndependentChallengeRunner(verifier).run(
+                IndependentChallengeRequest(
+                    run_id=verification.run_id,
+                    task=TASK,
+                    model_url=arguments.model_url,
+                    model_name=arguments.model_name,
+                )
             )
-        )
+        except ChallengeError as error:
+            print(json.dumps({"status": "failed", "error": str(error)}, indent=2))
+            return 1
 
     print(
         json.dumps(

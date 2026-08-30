@@ -36,6 +36,7 @@ MAX_SOURCE_FILE_CHARS = 2_000
 MAX_FILE_INDEX_CHARS = 1_500
 MAX_USER_PROMPT_CHARS = 18_000
 MAX_TEST_CHARS = 20_000
+NO_THINK_DIRECTIVE = "\n/no_think"
 CHALLENGE_TEST_NAME = "agentproof_challenge_test.py"
 TEST_DIRECTORY_NAMES = {"test", "tests", "__tests__", "spec", "specs"}
 TEST_FILE_NAMES = {"test.py", "tests.py", "conftest.py"}
@@ -97,9 +98,8 @@ BLOCKED_ATTRIBUTE_CALLS = {
     "xfail",
 }
 
-SYSTEM_PROMPT = """/no_think
-You are AgentProof's independent challenge-test author. Return the required JSON immediately without
-analysis, explanation, hidden planning, or Markdown.
+SYSTEM_PROMPT = """You are AgentProof's independent challenge-test author. Return the required
+JSON immediately without analysis, explanation, hidden planning, or Markdown.
 
 You receive a user task and a candidate change. Create one focused pytest module that checks a
 meaningful requirement the candidate's existing tests may have missed.
@@ -111,7 +111,7 @@ Rules:
   filesystem access, monkeypatching, sleeps, randomness, skip, or xfail.
 - The test must import real application code and contain a non-trivial assertion.
 - Select one concrete behavior quickly. Do not exhaustively audit the repository or repeat analysis.
-- Finish the complete JSON response within 900 generated tokens.
+- Finish the complete JSON response within 300 generated tokens.
 - Use behavior_mode "change" when the test should fail on the approved baseline and pass on the
   candidate. Use "preserve" when the same required behavior should pass on both.
 - Return exactly this shape:
@@ -369,7 +369,7 @@ class IndependentChallengeRunner:
             ),
             model=ModelRunEvidence(
                 provider=provider.label,
-                model=request.model_name,
+                model=getattr(provider, "model", request.model_name),
                 prompt_sha256=_sha256(prompt),
                 response_sha256=_sha256(completion.content),
                 duration_ms=completion.duration_ms,
@@ -436,7 +436,8 @@ class IndependentChallengeRunner:
 Write one independent pytest challenge for the most important unproven behavior. Return only the
 required JSON object.
 """
-        return prompt[:MAX_USER_PROMPT_CHARS]
+        bounded = prompt[: MAX_USER_PROMPT_CHARS - len(NO_THINK_DIRECTIVE)]
+        return f"{bounded}{NO_THINK_DIRECTIVE}"
 
     @staticmethod
     def _application_changes(changed_files, task: str = ""):

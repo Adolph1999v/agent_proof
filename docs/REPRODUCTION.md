@@ -68,30 +68,30 @@ AgentProof accepts an OpenAI-compatible endpoint on `127.0.0.1`, `localhost`, or
 sends repository context to a remote host. LM Studio's default endpoint is
 `http://127.0.0.1:1234/v1`; Ollama's is `http://127.0.0.1:11434/v1`.
 
-For the recorded LM Studio smoke run, exactly one existing model was loaded:
+The submission demo uses the existing Qwen2.5-Coder 7B model through Ollama because it produces the
+bounded structured challenge reliably on a memory-constrained machine:
 
 ```bash
-lms server start --port 1234 --bind 127.0.0.1
-lms load qwen/qwen3.6-27b --gpu max --context-length 49152 --parallel 1 \
-  --identifier agentproof-qwen3.6-27b --ttl 900 --yes
+ollama run qwen2.5-coder:7b
 make phase3-smoke
 ```
 
-The same load configuration is available as `make model-qwen`. Qwen3.6-27B supports a much larger
-native window, but 48K is the AgentProof default for a 48GB unified-memory Mac: it leaves more headroom
-than 64K for the Q6 model, operating system, inference buffers, and test workspaces. Repository prompts
-remain independently bounded; a larger model window is a safety margin, not permission to dump an
-entire repository into one request.
+`make phase3-smoke` defaults to Ollama at `http://127.0.0.1:11434/v1` and automatic model discovery.
+AgentProof bounds the complete prompt to 18,000 characters and the model proposal to 512 tokens.
 
-The model remains outside the repository and is not duplicated by AgentProof. The `--parallel 1`
-setting and AgentProof's process-wide request lock prevent concurrent inference. The 15-minute idle TTL
-releases memory automatically. A reviewer may use a smaller local model by entering its exact loaded
-identifier in the interface; correctness must be re-evaluated rather than assumed to transfer.
+The model remains outside the repository and is not duplicated by AgentProof. AgentProof's
+process-wide request lock prevents concurrent inference. The default `auto` selection queries the
+localhost model list, ignores embedding and reranking models, and selects the only text-generation
+model. If more than one is available, AgentProof lists their exact IDs and requires an explicit choice.
 
-A large local model can take several minutes to generate a challenge. The interface shows elapsed time
-while waiting. Use a concrete task description that names the feature and expected behavior; AgentProof
-still bounds and prioritizes Python application context so a large change cannot consume the full model
-window. Failed or length-limited attempts are preserved under the source run's `challenges/` directory.
+Qwen3.6 27B Q6 remains a benchmark candidate and can be loaded with `make model-qwen`. Its current LM
+Studio/Qwen3.5-compatible runtime ignores per-prompt and per-request non-thinking controls, so it is not
+the submission demo default; that observed failure remains preserved as runtime evidence.
+
+The interface shows elapsed time while waiting. Use a concrete task description that names the feature
+and expected behavior; AgentProof bounds and prioritizes Python application context, asks Qwen to use
+non-thinking mode, and caps the structured proposal at 512 tokens. Failed or length-limited attempts
+are preserved under the source run's `challenges/` directory.
 
 The smoke case is synthetic and exists only to prove the end-to-end connection. Model selection claims
 must come from the pinned multi-case bake-off described in `docs/EVALUATION.md`.

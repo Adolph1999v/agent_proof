@@ -8,7 +8,6 @@ from agentproof.challenges import (
     MAX_CHANGED_APPLICATION_FILES,
     MAX_TASK_CHARS,
     MAX_USER_PROMPT_CHARS,
-    SYSTEM_PROMPT,
     ChallengeError,
     IndependentChallengeRunner,
 )
@@ -184,6 +183,7 @@ def test_prompt_context_is_bounded_and_prioritizes_python_application_files(
 
     assert [change.path for change in application_changes] == ["large.py"]
     assert len(prompt) <= MAX_USER_PROMPT_CHARS
+    assert prompt.endswith("/no_think")
     assert "test.py" not in prompt
     assert "README.md" not in prompt
 
@@ -349,12 +349,71 @@ def test_model_provider_requests_strict_json_schema_and_records_usage(
     assert completion.finish_reason == "stop"
     assert completion.reasoning_content == "brief reasoning"
     request_json = captured["request"]["json"]
-    assert SYSTEM_PROMPT.startswith("/no_think")
     assert request_json["response_format"]["type"] == "json_schema"
     assert request_json["temperature"] == 0
     assert request_json["seed"] == 42
-    assert request_json["max_tokens"] == 1536
+    assert request_json["max_tokens"] == 512
     assert captured["options"]["trust_env"] is False
+
+
+def test_model_provider_auto_selects_only_loaded_generation_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeResponse:
+        def __init__(self, payload: dict[str, object]) -> None:
+            self.payload = payload
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return self.payload
+
+    class FakeClient:
+        def __init__(self, **options: object) -> None:
+            return None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *arguments: object) -> None:
+            return None
+
+        def get(self, endpoint: str, **options: object) -> FakeResponse:
+            captured["models_endpoint"] = endpoint
+            return FakeResponse(
+                {
+                    "data": [
+                        {"id": "qwen/qwen3.6-27b"},
+                        {"id": "text-embedding-nomic-embed-text-v1.5"},
+                    ]
+                }
+            )
+
+        def post(self, endpoint: str, **options: object) -> FakeResponse:
+            captured["request"] = options
+            return FakeResponse(
+                {
+                    "choices": [
+                        {
+                            "message": {"content": '{"behavior_mode":"change"}'},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {},
+                }
+            )
+
+    monkeypatch.setattr("agentproof.provider.httpx.Client", FakeClient)
+    provider = OpenAICompatibleProvider("http://127.0.0.1:1234/v1", "auto")
+
+    provider.complete("system", "user")
+
+    assert captured["models_endpoint"] == "http://127.0.0.1:1234/v1/models"
+    assert captured["request"]["json"]["model"] == "qwen/qwen3.6-27b"
+    assert provider.label == "openai-compatible:qwen/qwen3.6-27b"
 
 
 def test_model_provider_reports_timeout_and_releases_single_request_lock(

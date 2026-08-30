@@ -24,9 +24,11 @@ and reviewed the scoped implementation described below.
 - Source context: 4,000 characters total; 2,000 per file
 - Changed-file index: 1,500 characters
 - Final user prompt: 18,000 characters
-- Model output: 1,536 tokens
+- Model output: 512 tokens
 - Default model timeout: 120 seconds
-- Requested JSON target: approximately 900 generated tokens
+- Requested JSON target: approximately 300 generated tokens
+- Model selection: `auto` resolves the only loaded generation model and excludes embeddings
+- Recommended Qwen context: 16,384 tokens
 
 ## Trust Boundaries Preserved
 
@@ -41,8 +43,9 @@ and reviewed the scoped implementation described below.
 
 ## Tests Added or Updated
 
-- Provider request preserves strict JSON schema, temperature 0, seed 42, and uses 1,536 tokens.
-- Challenge instructions start with `/no_think`.
+- Provider request preserves strict JSON schema, temperature 0, seed 42, and uses 512 tokens.
+- Every bounded user prompt ends with `/no_think`, including at the maximum prompt size.
+- Automatic discovery selects the sole loaded generation model while excluding embedding models.
 - Tasks and final prompts are hard-bounded.
 - At most four deterministic, task-relevant Python application files enter model context.
 - Test, protected, and non-Python inputs remain excluded.
@@ -54,18 +57,20 @@ and reviewed the scoped implementation described below.
 
 | Command | Exit status | Result |
 | --- | ---: | --- |
-| `.venv/bin/python -m pytest backend/tests/test_challenges.py backend/tests/test_phase3_api.py` | 0 | 13 passed |
-| `make test-backend` | 0 | 65 passed |
+| `.venv/bin/python -m pytest backend/tests/test_challenges.py` | 0 | 13 passed |
+| `make test-backend` | 0 | 66 passed |
 | `make lint-backend` | 0 | Ruff passed |
-| `make check` | 0 | 65 backend tests, 13 frontend tests, Python/TypeScript lint, and production build passed |
+| `make check` | 0 | 66 backend tests, 13 frontend tests, Python/TypeScript lint, and production build passed |
 | `git diff --check` | 0 | No whitespace errors |
 | `git status --short` | 0 | Six intended files modified before commit |
 
 ## Remaining Manual Test
 
-Run one Qwen3.6 27B Q6 challenge through LM Studio and record wall-clock time, prompt tokens,
-completion tokens, response validity, baseline/candidate execution, and final deterministic verdict.
-Do not claim a live speed improvement until this replay succeeds.
+The final live replay used `qwen2.5-coder:7b` through Ollama with automatic model discovery. It
+returned a valid challenge in 28,478 ms using 542 prompt and 125 completion tokens. The generated test
+failed on the baseline, passed on the candidate, and produced `VERIFIED`. Qwen3.6 27B remains excluded
+from the demo default because the current LM Studio runtime ignored non-thinking controls. A second
+plain `make phase3-smoke` replay completed in 7,181 ms with the same proposal and verdict.
 
 ## Known Limitations
 

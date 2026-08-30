@@ -12,6 +12,7 @@ import httpx
 
 _MODEL_REQUEST_LOCK = threading.Lock()
 _LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
+_AUTO_MODEL = "auto"
 CHALLENGE_RESPONSE_FORMAT = {
     "type": "json_schema",
     "json_schema": {
@@ -69,7 +70,7 @@ class OpenAICompatibleProvider:
         *,
         api_key: str | None = None,
         timeout_seconds: int = 300,
-        max_tokens: int = 1536,
+        max_tokens: int = 512,
     ) -> None:
         parsed = urlparse(base_url)
         if (
@@ -89,10 +90,13 @@ class OpenAICompatibleProvider:
         normalized = base_url.rstrip("/")
         if normalized.endswith("/chat/completions"):
             self.endpoint = normalized
+            self.models_endpoint = normalized.removesuffix("/chat/completions") + "/models"
         elif normalized.endswith("/v1"):
             self.endpoint = f"{normalized}/chat/completions"
+            self.models_endpoint = f"{normalized}/models"
         else:
             self.endpoint = f"{normalized}/v1/chat/completions"
+            self.models_endpoint = f"{normalized}/v1/models"
         self.model = model.strip()
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
@@ -101,6 +105,36 @@ class OpenAICompatibleProvider:
     @property
     def label(self) -> str:
         return f"openai-compatible:{self.model}"
+
+    def _resolve_model(self, client: httpx.Client, headers: dict[str, str]) -> str:
+        if self.model.casefold() != _AUTO_MODEL:
+            return self.model
+
+        response = client.get(self.models_endpoint, headers=headers, timeout=5)
+        response.raise_for_status()
+        payload = response.json()
+        model_ids = [
+            item.get("id", "").strip()
+            for item in payload.get("data", [])
+            if isinstance(item, dict) and isinstance(item.get("id"), str)
+        ]
+        generation_models = [
+            model_id
+            for model_id in model_ids
+            if model_id and not any(term in model_id.casefold() for term in ("embed", "rerank"))
+        ]
+        if len(generation_models) == 1:
+            self.model = generation_models[0]
+            return self.model
+        if not generation_models:
+            raise ProviderError(
+                "No loaded text-generation model was found. Load one model in LM Studio or Ollama."
+            )
+        loaded = ", ".join(generation_models)
+        raise ProviderError(
+            "More than one text-generation model is loaded. Keep one model loaded or enter one "
+            f"of these exact IDs: {loaded}"
+        )
 
     def complete(self, system_prompt: str, user_prompt: str) -> ModelCompletion:
         if not _MODEL_REQUEST_LOCK.acquire(blocking=False):
@@ -116,11 +150,12 @@ class OpenAICompatibleProvider:
 
         try:
             with httpx.Client(timeout=self.timeout_seconds, trust_env=False) as client:
+                model = self._resolve_model(client, headers)
                 response = client.post(
                     self.endpoint,
                     headers=headers,
                     json={
-                        "model": self.model,
+                        "model": model,
                         "messages": [
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_prompt},

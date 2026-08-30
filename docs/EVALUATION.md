@@ -62,6 +62,13 @@ tokens, 645 completion tokens, and 37,369 ms of model time. Evidence is stored u
 it is not part of the headline bake-off score. A second run after restricting the generated-test
 environment produced the same invariants and execution verdict with the same token counts.
 
+The submission-demo replay used Qwen2.5-Coder 7B Q4 through Ollama after the current LM Studio runtime
+ignored Qwen3.6's non-thinking controls. Automatic model discovery selected the only generation model
+while excluding embeddings. The cold replay returned a valid 125-token challenge in 28,478 ms from a
+542-token prompt; a warm replay completed in 7,181 ms. Both failed on the baseline, passed on the
+candidate, and produced `VERIFIED`. The sanitized cold-run evidence is committed as
+`traces/runtime/phase3-qwen25-ollama-smoke.json`.
+
 ## Baseline
 
 The Phase 2 baseline is the repository's existing test suite run against the candidate patch without

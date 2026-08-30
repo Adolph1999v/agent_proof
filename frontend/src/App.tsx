@@ -156,8 +156,8 @@ export default function App() {
   const [verification, setVerification] = useState<VerificationState>({ status: "idle" });
   const [challenge, setChallenge] = useState<ChallengeState>({ status: "idle" });
   const [challengeElapsedSeconds, setChallengeElapsedSeconds] = useState(0);
-  const [modelUrl, setModelUrl] = useState("http://127.0.0.1:1234/v1");
-  const [modelName, setModelName] = useState("agentproof-qwen3.6-27b");
+  const [modelUrl, setModelUrl] = useState("http://127.0.0.1:11434/v1");
+  const [modelName, setModelName] = useState("auto");
 
   useEffect(() => {
     let active = true;
@@ -607,7 +607,7 @@ export default function App() {
                     />
                   </label>
                   <label htmlFor="model-name">
-                    <span>Loaded model name</span>
+                    <span>Model selection</span>
                     <input
                       id="model-name"
                       onChange={(event) => setModelName(event.target.value)}
@@ -617,8 +617,8 @@ export default function App() {
                   </label>
                 </div>
                 <p className="model-context-note">
-                  Qwen3.6 27B on a 48GB Mac: load a 48K context window. AgentProof still bounds
-                  repository input so output and system memory retain headroom.
+                  Demo default: Qwen2.5-Coder 7B through Ollama. Auto selects the sole local
+                  generation model and ignores embedding models.
                 </p>
 
                 {challenge.status === "error" ? (
