@@ -471,7 +471,7 @@ class ProjectStore:
             )
             status = evidence.status
             summary = {
-                "passed": "Current pytest checks pass; no earlier baseline was required.",
+                "passed": "Current pytest checks pass in the disposable audit workspace.",
                 "failed": "Current pytest checks fail in the disposable audit workspace.",
                 "timed_out": "Current pytest checks timed out in the disposable audit workspace.",
                 "not_run": "Current pytest checks were not run.",

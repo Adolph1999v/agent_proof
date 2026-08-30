@@ -488,7 +488,9 @@ export default function App() {
                         <span>Detected state</span>
                         <strong>
                           {inspectedProject.latest_baseline
-                            ? `${inspectedProject.changes.length} change(s)`
+                            ? inspectedProject.changes.length
+                              ? `${inspectedProject.changes.length} change(s)`
+                              : "Matches approved baseline"
                             : inspectedProject.current_state_audit?.status === "passed"
                               ? "Current checks pass"
                               : "Current state inspected"}
@@ -499,8 +501,10 @@ export default function App() {
                                 .slice(0, 3)
                                 .map((change) => `${change.status}: ${change.path}`)
                                 .join(" · ")
-                            : inspectedProject.current_state_audit?.summary ??
-                              "No approved comparison exists yet"}
+                            : inspectedProject.latest_baseline
+                              ? "The current project is identical to the latest approved baseline."
+                              : inspectedProject.current_state_audit?.summary ??
+                                "No approved comparison exists yet"}
                         </small>
                       </div>
                       {(!inspectedProject.latest_baseline ||
