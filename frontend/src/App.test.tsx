@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 
-const health = { status: "ok", service: "agentproof", version: "0.2.0" };
+const health = { status: "ok", service: "agentproof", version: "0.3.0" };
 const rubric = {
   candidates: ["Qwen3.6 27B Q6", "Qwen3-Coder 30B", "Qwen2.5-Coder 7B"],
   categories: [
@@ -67,7 +67,7 @@ describe("AgentProof foundation", () => {
     expect(screen.getByRole("button", { name: /verify detected changes/i })).toBeDisabled();
 
     await waitFor(() => {
-      expect(screen.getAllByText("Backend connected · v0.2.0")).toHaveLength(2);
+      expect(screen.getAllByText("Backend connected · v0.3.0")).toHaveLength(2);
     });
 
     expect(screen.getByText("Qwen3.6 27B Q6")).toBeInTheDocument();

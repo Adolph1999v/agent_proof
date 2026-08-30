@@ -26,11 +26,15 @@ from agentproof.models import (
 from agentproof.provider import ChallengeProvider, OpenAICompatibleProvider, ProviderError
 from agentproof.verifier import DeterministicVerifier, VerificationInputError
 
-MAX_PROMPT_PATCH_CHARS = 36_000
-MAX_SOURCE_CONTEXT_CHARS = 24_000
+MAX_PROMPT_PATCH_CHARS = 16_000
+MAX_PATCH_FILE_CHARS = 6_000
+MAX_SOURCE_CONTEXT_CHARS = 8_000
+MAX_SOURCE_FILE_CHARS = 3_000
+MAX_FILE_INDEX_CHARS = 4_000
 MAX_TEST_CHARS = 20_000
 CHALLENGE_TEST_NAME = "agentproof_challenge_test.py"
-TEST_DIRECTORY_NAMES = {"test", "tests", "__tests__"}
+TEST_DIRECTORY_NAMES = {"test", "tests", "__tests__", "spec", "specs"}
+TEST_FILE_NAMES = {"test.py", "tests.py", "conftest.py"}
 BLOCKED_IMPORT_ROOTS = {
     "builtins",
     "ctypes",
@@ -100,6 +104,8 @@ Rules:
 - Do not use network access, subprocesses, dynamic execution, environment variables, arbitrary
   filesystem access, monkeypatching, sleeps, randomness, skip, or xfail.
 - The test must import real application code and contain a non-trivial assertion.
+- Select one concrete behavior quickly. Do not exhaustively audit the repository or repeat analysis.
+- Finish the JSON response within 1,200 generated tokens.
 - Use behavior_mode "change" when the test should fail on the approved baseline and pass on the
   candidate. Use "preserve" when the same required behavior should pass on both.
 - Return exactly this shape:
@@ -128,8 +134,11 @@ def _is_test_path(path: Path) -> bool:
     parts = {part.lower() for part in path.parts}
     return bool(
         parts & TEST_DIRECTORY_NAMES
+        or name in TEST_FILE_NAMES
         or name.startswith("test_")
+        or name.startswith("tests_")
         or name.endswith("_test.py")
+        or name.endswith("_tests.py")
         or ".test." in name
         or ".spec." in name
     )
@@ -175,10 +184,7 @@ def _validate_test(code: str) -> None:
         raise ChallengeError(
             "The generated challenge must contain a pytest test function and an assertion."
         )
-    if any(
-        isinstance(node.test, ast.Constant) and bool(node.test.value)
-        for node in assertions
-    ):
+    if any(isinstance(node.test, ast.Constant) for node in assertions):
         raise ChallengeError("The generated challenge contains a trivial constant assertion.")
 
     for function in test_functions:
@@ -240,9 +246,15 @@ class IndependentChallengeRunner:
         if not source_workspace.is_dir() or not patch_path.is_file():
             raise ChallengeError("The source verification workspace or candidate patch is missing.")
 
-        patch = self._application_patch(source_workspace, source_report.changed_files)
+        application_changes = self._application_changes(source_report.changed_files)
+        if not application_changes:
+            raise ChallengeError(
+                "The current challenge adapter requires at least one changed Python "
+                "application file."
+            )
+        patch = self._application_patch(source_workspace, application_changes)
         prompt = self._user_prompt(
-            source_report.changed_files,
+            application_changes,
             source_workspace,
             request.task,
             patch,
@@ -252,18 +264,66 @@ class IndependentChallengeRunner:
             request.model_name,
             timeout_seconds=request.model_timeout_seconds,
         )
-        try:
-            completion = provider.complete(SYSTEM_PROMPT, prompt)
-        except ProviderError as error:
-            raise ChallengeError(str(error)) from error
-        proposal = _parse_proposal(completion.content)
-        _validate_test(proposal.test_code)
 
         challenge_id = f"challenge-{datetime.now(UTC):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:8]}"
         challenge_directory = run_directory / "challenges" / challenge_id
+        challenge_directory.mkdir(parents=True, exist_ok=False)
+        relative_root = f"artifacts/runs/{request.run_id}/challenges/{challenge_id}"
+        trajectory_path = challenge_directory / "trajectory.json"
+        try:
+            completion = provider.complete(SYSTEM_PROMPT, prompt)
+        except ProviderError as error:
+            self._write_trajectory(
+                trajectory_path,
+                prompt,
+                error=str(error),
+            )
+            raise ChallengeError(
+                f"{error} Failure evidence: {relative_root}/trajectory.json"
+            ) from error
+
+        if not completion.content.strip():
+            if completion.finish_reason == "length":
+                message = (
+                    "The local model exhausted its context window before producing the challenge "
+                    f"JSON ({completion.prompt_tokens} prompt + "
+                    f"{completion.completion_tokens} completion tokens)."
+                )
+            else:
+                message = "The local model returned an empty challenge response."
+            self._write_trajectory(
+                trajectory_path,
+                prompt,
+                completion=completion,
+                error=message,
+            )
+            raise ChallengeError(
+                f"{message} Failure evidence: {relative_root}/trajectory.json"
+            )
+
+        try:
+            proposal = _parse_proposal(completion.content)
+            _validate_test(proposal.test_code)
+        except ChallengeError as error:
+            self._write_trajectory(
+                trajectory_path,
+                prompt,
+                completion=completion,
+                error=str(error),
+            )
+            raise ChallengeError(
+                f"{error} Failure evidence: {relative_root}/trajectory.json"
+            ) from error
+
+        self._write_trajectory(
+            trajectory_path,
+            prompt,
+            completion=completion,
+            proposal_accepted=True,
+        )
+
         baseline_workspace = challenge_directory / "baseline"
         candidate_workspace = challenge_directory / "candidate"
-        challenge_directory.mkdir(parents=True, exist_ok=False)
 
         self._clone(source_workspace, baseline_workspace)
         self._clone(source_workspace, candidate_workspace)
@@ -285,7 +345,6 @@ class IndependentChallengeRunner:
             candidate_execution,
         )
 
-        relative_root = f"artifacts/runs/{request.run_id}/challenges/{challenge_id}"
         report = IndependentChallengeReport(
             challenge_id=challenge_id,
             created_at=datetime.now(UTC),
@@ -317,24 +376,13 @@ class IndependentChallengeRunner:
             proposal.test_code,
             encoding="utf-8",
         )
-        (challenge_directory / "trajectory.json").write_text(
-            json.dumps(
-                {
-                    "system_prompt": SYSTEM_PROMPT,
-                    "user_prompt": prompt,
-                    "model_response": completion.content,
-                    "model_usage": {
-                        "prompt_tokens": completion.prompt_tokens,
-                        "completion_tokens": completion.completion_tokens,
-                        **completion.extra_usage,
-                    },
-                    "proposal_accepted": True,
-                    "baseline_execution": baseline_execution.model_dump(mode="json"),
-                    "candidate_execution": candidate_execution.model_dump(mode="json"),
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
+        self._write_trajectory(
+            trajectory_path,
+            prompt,
+            completion=completion,
+            proposal_accepted=True,
+            baseline_execution=baseline_execution.model_dump(mode="json"),
+            candidate_execution=candidate_execution.model_dump(mode="json"),
         )
         (challenge_directory / "report.json").write_text(
             report.model_dump_json(indent=2),
@@ -348,8 +396,6 @@ class IndependentChallengeRunner:
         used = 0
         for changed in changed_files:
             path = Path(changed.path)
-            if changed.protected or _is_test_path(path) or path.suffix != ".py":
-                continue
             source_path = workspace / path
             if not source_path.is_file():
                 continue
@@ -357,12 +403,19 @@ class IndependentChallengeRunner:
             remaining = MAX_SOURCE_CONTEXT_CHARS - used
             if remaining <= 0:
                 break
-            excerpt = content[:remaining]
+            excerpt = content[: min(remaining, MAX_SOURCE_FILE_CHARS)]
             used += len(excerpt)
             sections.append(f"### {changed.path}\n{excerpt}")
         context = "\n\n".join(sections) or "(No changed Python source excerpt was available.)"
+        file_index = "\n".join(
+            f"- {changed.path} (+{changed.added_lines}/-{changed.deleted_lines})"
+            for changed in changed_files
+        )[:MAX_FILE_INDEX_CHARS]
         return f"""## Original user task
 {task}
+
+## Changed Python application files
+{file_index}
 
 ## Candidate application patch (test files excluded)
 {patch[:MAX_PROMPT_PATCH_CHARS]}
@@ -375,13 +428,27 @@ required JSON object.
 """
 
     @staticmethod
+    def _application_changes(changed_files):
+        return sorted(
+            (
+                changed
+                for changed in changed_files
+                if not changed.protected
+                and not _is_test_path(Path(changed.path))
+                and Path(changed.path).suffix.lower() == ".py"
+            ),
+            key=lambda changed: (
+                -(changed.added_lines + changed.deleted_lines),
+                changed.path,
+            ),
+        )
+
+    @staticmethod
     def _application_patch(workspace: Path, changed_files) -> str:
         sections: list[str] = []
         used = 0
         for changed in changed_files:
             path = Path(changed.path)
-            if changed.protected or _is_test_path(path):
-                continue
             completed = subprocess.run(
                 [
                     "git",
@@ -436,10 +503,43 @@ required JSON object.
             remaining = MAX_PROMPT_PATCH_CHARS - used
             if remaining <= 0:
                 break
-            bounded_section = section[:remaining]
+            bounded_section = section[: min(remaining, MAX_PATCH_FILE_CHARS)]
             sections.append(bounded_section)
             used += len(bounded_section)
         return "\n".join(sections) or "(No non-test patch content was available.)"
+
+    @staticmethod
+    def _write_trajectory(
+        path: Path,
+        prompt: str,
+        *,
+        completion=None,
+        error: str | None = None,
+        proposal_accepted: bool = False,
+        baseline_execution=None,
+        candidate_execution=None,
+    ) -> None:
+        payload = {
+            "system_prompt": SYSTEM_PROMPT,
+            "user_prompt": prompt,
+            "model_response": completion.content if completion else None,
+            "model_reasoning": completion.reasoning_content if completion else None,
+            "model_finish_reason": completion.finish_reason if completion else None,
+            "model_usage": (
+                {
+                    "prompt_tokens": completion.prompt_tokens,
+                    "completion_tokens": completion.completion_tokens,
+                    **completion.extra_usage,
+                }
+                if completion
+                else None
+            ),
+            "proposal_accepted": proposal_accepted,
+            "error": error,
+            "baseline_execution": baseline_execution,
+            "candidate_execution": candidate_execution,
+        }
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     @staticmethod
     def _clone(source: Path, destination: Path) -> None:

@@ -658,6 +658,13 @@ textarea {
   font-size: 10px;
 }
 
+.task-guidance {
+  margin: -8px 0 1px;
+  color: #b8a36a;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .project-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

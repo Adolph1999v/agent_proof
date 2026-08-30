@@ -21,4 +21,6 @@ Representative excerpts are acceptable, but they must not hide failures or splic
 
 Phase 3 challenge runs store `trajectory.json`, `report.json`, the generated test, and both disposable
 workspaces under `artifacts/runs/<run-id>/challenges/<challenge-id>/`. The trajectory records the full
-model prompt and response, so it must be reviewed for private source content before submission.
+model prompt and response, so it must be reviewed for private source content before submission. Failed,
+empty, malformed, and safety-rejected model attempts also retain a trajectory instead of disappearing
+as an unexplained UI error.

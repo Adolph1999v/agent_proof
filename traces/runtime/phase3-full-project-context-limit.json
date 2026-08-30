@@ -1,0 +1,17 @@
+{
+  "trace_type": "runtime_failure_summary",
+  "observed_at": "2026-08-30T11:47:44Z",
+  "source_run_id": "run-20260830T111402Z-137c0247",
+  "model": "agentproof-qwen3.6-27b",
+  "task": "add new features",
+  "outcome": "no_final_challenge_json",
+  "finish_reason": "length",
+  "prompt_tokens": 14734,
+  "completion_tokens": 1650,
+  "context_tokens": 16384,
+  "duration_ms": 204266,
+  "response_content_empty": true,
+  "diagnosis": "The prompt consumed nearly the full model window, leaving only enough space for hidden reasoning and none for the required JSON response.",
+  "corrective_action": "Bound and rank Python application context, reserve a larger output budget, preserve failed attempts, and expose elapsed progress in the UI.",
+  "redaction_note": "The repetitive model reasoning and local absolute paths were omitted; token counts, finish reason, timing, and failure outcome are unchanged."
+}

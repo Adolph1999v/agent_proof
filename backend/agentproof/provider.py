@@ -47,6 +47,8 @@ class ModelCompletion:
     duration_ms: int
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    finish_reason: str | None = None
+    reasoning_content: str | None = None
     extra_usage: dict[str, int] = field(default_factory=dict)
 
 
@@ -67,7 +69,7 @@ class OpenAICompatibleProvider:
         *,
         api_key: str | None = None,
         timeout_seconds: int = 300,
-        max_tokens: int = 2048,
+        max_tokens: int = 3072,
     ) -> None:
         parsed = urlparse(base_url)
         if (
@@ -132,7 +134,11 @@ class OpenAICompatibleProvider:
                 )
             response.raise_for_status()
             payload = response.json()
-            content = payload["choices"][0]["message"]["content"]
+            choice = payload["choices"][0]
+            message = choice["message"]
+            content = message.get("content") or ""
+            reasoning_content = message.get("reasoning_content") or None
+            finish_reason = choice.get("finish_reason") or None
             usage = payload.get("usage") or {}
         except httpx.HTTPStatusError as error:
             detail = error.response.text.strip()[:500]
@@ -155,8 +161,8 @@ class OpenAICompatibleProvider:
         finally:
             _MODEL_REQUEST_LOCK.release()
 
-        if not isinstance(content, str) or not content.strip():
-            raise ProviderError("The local model returned an empty challenge response.")
+        if not isinstance(content, str):
+            raise ProviderError("The local model returned an unsupported challenge response.")
 
         known_usage = {
             "prompt_tokens": int(usage.get("prompt_tokens") or 0),
@@ -172,5 +178,9 @@ class OpenAICompatibleProvider:
             duration_ms=round((time.monotonic() - started) * 1000),
             prompt_tokens=known_usage["prompt_tokens"],
             completion_tokens=known_usage["completion_tokens"],
+            finish_reason=str(finish_reason) if finish_reason is not None else None,
+            reasoning_content=(
+                str(reasoning_content) if reasoning_content is not None else None
+            ),
             extra_usage=extra_usage,
         )

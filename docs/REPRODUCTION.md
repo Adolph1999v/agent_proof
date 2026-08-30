@@ -82,5 +82,10 @@ setting and AgentProof's process-wide request lock prevent concurrent inference.
 releases memory automatically. A reviewer may use a smaller local model by entering its exact loaded
 identifier in the interface; correctness must be re-evaluated rather than assumed to transfer.
 
+A large local model can take several minutes to generate a challenge. The interface shows elapsed time
+while waiting. Use a concrete task description that names the feature and expected behavior; AgentProof
+still bounds and prioritizes Python application context so a large change cannot consume the full model
+window. Failed or length-limited attempts are preserved under the source run's `challenges/` directory.
+
 The smoke case is synthetic and exists only to prove the end-to-end connection. Model selection claims
 must come from the pinned multi-case bake-off described in `docs/EVALUATION.md`.

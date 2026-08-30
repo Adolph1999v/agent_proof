@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from agentproof.challenges import ChallengeError, IndependentChallengeRunner
-from agentproof.models import IndependentChallengeRequest, VerificationRequest
+from agentproof.models import ChangedFile, IndependentChallengeRequest, VerificationRequest
 from agentproof.provider import ModelCompletion, OpenAICompatibleProvider, ProviderError
 from agentproof.verifier import DeterministicVerifier
 
@@ -95,6 +95,13 @@ new file mode 100644
 @@ -0,0 +1,2 @@
 +def candidate_application_marker() -> str:
 +    return "application"
+diff --git a/test.py b/test.py
+new file mode 100644
+--- /dev/null
++++ b/test.py
+@@ -0,0 +1,2 @@
++def candidate_root_test_marker() -> bool:
++    return True
 """
     verifier = DeterministicVerifier(artifacts_root)
     report = verifier.verify(
@@ -141,7 +148,34 @@ def test_change_challenge_is_verified_only_when_baseline_fails_and_candidate_pas
     assert (tmp_path / report.evidence_path).is_file()
     assert "test_service.py" not in provider.prompts[0][1]
     assert "test_candidate_secret_marker" not in provider.prompts[0][1]
+    assert "candidate_root_test_marker" not in provider.prompts[0][1]
     assert "candidate_application_marker" in provider.prompts[0][1]
+
+
+def test_prompt_context_is_bounded_and_prioritizes_python_application_files(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "large.py").write_text("x = 1\n" * 10_000, encoding="utf-8")
+    changes = [
+        ChangedFile(path="large.py", added_lines=10_000, deleted_lines=0, protected=False),
+        ChangedFile(path="test.py", added_lines=1, deleted_lines=0, protected=False),
+        ChangedFile(path="README.md", added_lines=1, deleted_lines=0, protected=False),
+    ]
+
+    application_changes = IndependentChallengeRunner._application_changes(changes)
+    prompt = IndependentChallengeRunner._user_prompt(
+        application_changes,
+        workspace,
+        "Implement one concrete behavior.",
+        "p" * 100_000,
+    )
+
+    assert [change.path for change in application_changes] == ["large.py"]
+    assert len(prompt) < 29_000
+    assert "test.py" not in prompt
+    assert "README.md" not in prompt
 
 
 def test_preservation_challenge_marks_a_regression_unsafe(tmp_path: Path) -> None:
@@ -217,7 +251,15 @@ def test_model_provider_requests_strict_json_schema_and_records_usage(
 
         def json(self) -> dict[str, object]:
             return {
-                "choices": [{"message": {"content": '{"behavior_mode":"change"}'}}],
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"behavior_mode":"change"}',
+                            "reasoning_content": "brief reasoning",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
                 "usage": {"prompt_tokens": 12, "completion_tokens": 7, "total_tokens": 19},
             }
 
@@ -243,6 +285,45 @@ def test_model_provider_requests_strict_json_schema_and_records_usage(
 
     assert completion.prompt_tokens == 12
     assert completion.completion_tokens == 7
+    assert completion.finish_reason == "stop"
+    assert completion.reasoning_content == "brief reasoning"
     request_json = captured["request"]["json"]
     assert request_json["response_format"]["type"] == "json_schema"
+    assert request_json["max_tokens"] == 3072
     assert captured["options"]["trust_env"] is False
+
+
+def test_empty_length_limited_response_is_preserved_as_failure_evidence(
+    tmp_path: Path,
+) -> None:
+    class EmptyProvider:
+        @property
+        def label(self) -> str:
+            return "scripted:empty"
+
+        def complete(self, system_prompt: str, user_prompt: str) -> ModelCompletion:
+            return ModelCompletion(
+                content="",
+                duration_ms=10,
+                prompt_tokens=14_734,
+                completion_tokens=1_650,
+                finish_reason="length",
+                reasoning_content="The model used the remaining context for reasoning.",
+            )
+
+    task = "Change the service value from 1 to 2."
+    repository = create_repository(tmp_path)
+    artifacts_root = tmp_path / "artifacts" / "runs"
+    verifier, run_id = verification_run(repository, artifacts_root, task)
+
+    with pytest.raises(ChallengeError, match="exhausted its context window"):
+        IndependentChallengeRunner(verifier, EmptyProvider()).run(
+            challenge_request(run_id, task)
+        )
+
+    trajectories = list((artifacts_root / run_id / "challenges").glob("*/trajectory.json"))
+    assert len(trajectories) == 1
+    trajectory = json.loads(trajectories[0].read_text(encoding="utf-8"))
+    assert trajectory["proposal_accepted"] is False
+    assert trajectory["model_finish_reason"] == "length"
+    assert trajectory["model_usage"]["prompt_tokens"] == 14_734

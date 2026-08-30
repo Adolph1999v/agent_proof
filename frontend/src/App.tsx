@@ -163,6 +163,12 @@ function readableCheckStatus(status: CommandEvidence["status"]): string {
   }[status];
 }
 
+function readableElapsed(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
 export default function App() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [verificationMode, setVerificationMode] = useState<"automatic" | "manual">("automatic");
@@ -173,6 +179,7 @@ export default function App() {
   const [projectState, setProjectState] = useState<ProjectState>({ status: "idle" });
   const [verification, setVerification] = useState<VerificationState>({ status: "idle" });
   const [challenge, setChallenge] = useState<ChallengeState>({ status: "idle" });
+  const [challengeElapsedSeconds, setChallengeElapsedSeconds] = useState(0);
   const [modelUrl, setModelUrl] = useState("http://127.0.0.1:1234/v1");
   const [modelName, setModelName] = useState("agentproof-qwen3.6-27b");
 
@@ -194,6 +201,20 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (challenge.status !== "running") {
+      setChallengeElapsedSeconds(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const updateElapsed = () => {
+      setChallengeElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    };
+    updateElapsed();
+    const timer = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(timer);
+  }, [challenge.status]);
+
   const connectionLabel =
     state.status === "ready"
       ? `Backend connected · v${state.health.version}`
@@ -212,6 +233,7 @@ export default function App() {
         );
   const report = verification.status === "ready" ? verification.report : null;
   const challengeReport = challenge.status === "ready" ? challenge.report : null;
+  const taskLooksVague = Boolean(task.trim() && task.trim().split(/\s+/).length < 5);
   const activeVerdict = challengeReport?.verdict ?? report?.verdict;
   const failureEvidence = challengeReport
     ? challengeReport.candidate_execution.status === "failed"
@@ -226,6 +248,47 @@ export default function App() {
           ? report.test_execution.output_preview
           : null
       : null;
+  const detectedStateLabel = inspectedProject?.latest_baseline
+    ? inspectedProject.changes.length
+      ? challengeReport?.verdict === "VERIFIED"
+        ? `${inspectedProject.changes.length} verified change(s) · approval needed`
+        : challengeReport?.verdict === "UNSAFE" || report?.verdict === "UNSAFE"
+          ? `${inspectedProject.changes.length} unsafe change(s)`
+          : challengeReport?.verdict === "INCONCLUSIVE"
+            ? `${inspectedProject.changes.length} change(s) · inconclusive`
+            : challenge.status === "running"
+              ? `${inspectedProject.changes.length} change(s) · challenging`
+              : challenge.status === "error"
+                ? `${inspectedProject.changes.length} change(s) · challenge failed`
+                : report?.test_execution.status === "passed"
+                  ? `${inspectedProject.changes.length} change(s) · tests passed`
+                  : verification.status === "running"
+                    ? `${inspectedProject.changes.length} change(s) · checking`
+                    : `${inspectedProject.changes.length} unverified change(s)`
+      : "Matches approved baseline"
+    : inspectedProject?.current_state_audit?.status === "passed"
+      ? "Current checks pass"
+      : "Current state inspected";
+  const detectedStateDetail = inspectedProject?.changes.length
+    ? challengeReport?.verdict === "VERIFIED"
+      ? "Independent evidence passed. Approve this state to make it the next baseline."
+      : challengeReport?.verdict === "UNSAFE"
+        ? "Independent evidence found a regression; this state cannot be approved."
+        : challengeReport?.verdict === "INCONCLUSIVE"
+          ? "Independent evidence could not distinguish the baseline from the candidate."
+          : challenge.status === "running"
+            ? `The local model is producing a bounded challenge (${readableElapsed(challengeElapsedSeconds)}).`
+            : challenge.status === "error"
+              ? "The challenge did not complete; the detected changes remain unapproved."
+              : report?.test_execution.status === "passed"
+                ? "Existing tests passed; an independent challenge is still required."
+                : inspectedProject.changes
+                    .slice(0, 3)
+                    .map((change) => `${change.status}: ${change.path}`)
+                    .join(" · ")
+    : inspectedProject?.latest_baseline
+      ? "The current project is identical to the latest approved baseline."
+      : inspectedProject?.current_state_audit?.summary ?? "No approved comparison exists yet";
 
   async function startVerification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -522,6 +585,12 @@ export default function App() {
                   value={task}
                 />
               </label>
+              {taskLooksVague ? (
+                <p className="task-guidance">
+                  Describe the feature and expected behavior more specifically for a faster, more
+                  relevant independent challenge.
+                </p>
+              ) : null}
 
               {verificationMode === "automatic" ? (
                 <section className="project-discovery" aria-label="Automatic change discovery">
@@ -565,26 +634,8 @@ export default function App() {
                       </div>
                       <div>
                         <span>Detected state</span>
-                        <strong>
-                          {inspectedProject.latest_baseline
-                            ? inspectedProject.changes.length
-                              ? `${inspectedProject.changes.length} change(s)`
-                              : "Matches approved baseline"
-                            : inspectedProject.current_state_audit?.status === "passed"
-                              ? "Current checks pass"
-                              : "Current state inspected"}
-                        </strong>
-                        <small>
-                          {inspectedProject.changes.length
-                            ? inspectedProject.changes
-                                .slice(0, 3)
-                                .map((change) => `${change.status}: ${change.path}`)
-                                .join(" · ")
-                            : inspectedProject.latest_baseline
-                              ? "The current project is identical to the latest approved baseline."
-                              : inspectedProject.current_state_audit?.summary ??
-                                "No approved comparison exists yet"}
-                        </small>
+                        <strong>{detectedStateLabel}</strong>
+                        <small>{detectedStateDetail}</small>
                       </div>
                       {(!inspectedProject.latest_baseline ||
                         (challengeReport?.verdict === "VERIFIED" &&
@@ -709,9 +760,15 @@ export default function App() {
                     onClick={runIndependentChallenge}
                     type="button"
                   >
-                    {challenge.status === "running" ? "Generating and testing…" : "Run local challenge"}
+                    {challenge.status === "running"
+                      ? `Generating and testing · ${readableElapsed(challengeElapsedSeconds)}`
+                      : "Run local challenge"}
                   </button>
-                  <p>The model proposes the test. AgentProof executes it and owns the verdict.</p>
+                  <p>
+                    {challenge.status === "running"
+                      ? "Large local models can take a few minutes. Keep this page open while AgentProof waits."
+                      : "The model proposes the test. AgentProof executes it and owns the verdict."}
+                  </p>
                 </div>
               </section>
             ) : null}
@@ -750,7 +807,9 @@ export default function App() {
                     : "Waiting for a request"}
             </h2>
             <p>
-              {challenge.status === "error"
+              {challenge.status === "running"
+                ? `The local model is analyzing bounded application context and preparing one test (${readableElapsed(challengeElapsedSeconds)}).`
+                : challenge.status === "error"
                 ? challenge.message
                 : verification.status === "error"
                 ? verification.message

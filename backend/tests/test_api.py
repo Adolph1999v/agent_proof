@@ -59,7 +59,7 @@ def test_health_reports_service_version() -> None:
     assert response.json() == {
         "status": "ok",
         "service": "agentproof",
-        "version": "0.2.0",
+        "version": "0.3.0",
     }
 
 

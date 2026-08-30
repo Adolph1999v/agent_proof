@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 
-const health = { status: "ok", service: "agentproof", version: "0.2.0" };
+const health = { status: "ok", service: "agentproof", version: "0.3.0" };
 const rubric = {
   candidates: ["Qwen3.6 27B Q6"],
   categories: [],

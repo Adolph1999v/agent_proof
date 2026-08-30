@@ -90,11 +90,17 @@ histories fail closed instead of being compared automatically.
 
 ## Phase 3 model boundary
 
-The model receives the natural-language task, a candidate application patch with test files filtered
-out, and bounded excerpts from changed Python application files. Existing and candidate-added test
-source is deliberately excluded so the model cannot merely copy candidate-controlled evidence. The
-model returns invariants, a `change` or `preserve` expectation, and one pytest module under a strict
-JSON schema.
+The model receives the natural-language task plus a size-ranked, bounded view of changed Python
+application files. Per-file and total budgets prevent a large repository from consuming the model's
+entire context window. Documentation, frontend files, existing tests, and candidate-added tests are
+excluded from the current pytest adapter so the model cannot merely copy candidate-controlled
+evidence. The model returns invariants, a `change` or `preserve` expectation, and one pytest module
+under a strict JSON schema.
+
+Every attempt receives an evidence directory before inference begins. Rejected, malformed,
+length-limited, and successful responses preserve the exact bounded prompt, model response, finish
+reason, usage, and validation outcome in `trajectory.json`. A failed model request never becomes an
+execution verdict.
 
 AgentProof statically rejects generated tests that use network, subprocess, dynamic execution,
 filesystem mutation, monkeypatching, skip/xfail, or constant assertions. It then runs the accepted test
