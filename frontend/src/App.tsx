@@ -8,19 +8,6 @@ type Health = {
   version: string;
 };
 
-type ScoreCategory = {
-  key: string;
-  label: string;
-  weight: number;
-};
-
-type Rubric = {
-  candidates: string[];
-  categories: ScoreCategory[];
-  total_weight: number;
-  correctness_is_gate: boolean;
-};
-
 type CommandEvidence = {
   command: string[];
   status: "passed" | "failed" | "timed_out" | "not_run";
@@ -107,7 +94,7 @@ type ProjectInspection = {
 
 type LoadState =
   | { status: "loading" }
-  | { status: "ready"; health: Health; rubric: Rubric }
+  | { status: "ready"; health: Health }
   | { status: "error"; message: string };
 
 type VerificationState =
@@ -128,31 +115,20 @@ type ChallengeState =
   | { status: "ready"; report: IndependentChallengeReport }
   | { status: "error"; message: string };
 
-const verificationSteps = [
-  ["01", "Brief", "Task and project"],
-  ["02", "Challenge", "Independent checks"],
-  ["03", "Evidence", "Human decision"],
-] as const;
-
 const proofContract = [
   ["Intent", "The patch solves the requested task."],
   ["Behavior", "The patch survives tests it did not write."],
   ["Evidence", "The verdict can be reproduced and reviewed."],
 ] as const;
 
-async function loadFoundation(): Promise<{ health: Health; rubric: Rubric }> {
-  const [healthResponse, rubricResponse] = await Promise.all([
-    fetch("/api/health"),
-    fetch("/api/model-evaluation/rubric"),
-  ]);
-
-  if (!healthResponse.ok || !rubricResponse.ok) {
+async function loadFoundation(): Promise<{ health: Health }> {
+  const healthResponse = await fetch("/api/health");
+  if (!healthResponse.ok) {
     throw new Error("The local backend did not return a successful response.");
   }
 
   return {
     health: (await healthResponse.json()) as Health,
-    rubric: (await rubricResponse.json()) as Rubric,
   };
 }
 
@@ -173,12 +149,9 @@ function readableElapsed(totalSeconds: number): string {
 
 export default function App() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [verificationMode, setVerificationMode] = useState<"automatic" | "manual">("automatic");
   const [repositoryPath, setRepositoryPath] = useState("");
   const [directoryPickerOpen, setDirectoryPickerOpen] = useState(false);
   const [task, setTask] = useState("");
-  const [patch, setPatch] = useState("");
-  const [trace, setTrace] = useState("");
   const [projectState, setProjectState] = useState<ProjectState>({ status: "idle" });
   const [verification, setVerification] = useState<VerificationState>({ status: "idle" });
   const [challenge, setChallenge] = useState<ChallengeState>({ status: "idle" });
@@ -225,15 +198,12 @@ export default function App() {
         ? "Backend unavailable"
         : "Connecting to backend";
   const inspectedProject = projectState.status === "ready" ? projectState.project : null;
-  const canStartVerification =
-    verificationMode === "manual"
-      ? Boolean(repositoryPath.trim() && task.trim() && patch.trim())
-      : Boolean(
-          repositoryPath.trim() &&
-            task.trim() &&
-            inspectedProject?.latest_baseline &&
-            inspectedProject.changes.length,
-        );
+  const canStartVerification = Boolean(
+    repositoryPath.trim() &&
+      task.trim() &&
+      inspectedProject?.latest_baseline &&
+      inspectedProject.changes.length,
+  );
   const report = verification.status === "ready" ? verification.report : null;
   const challengeReport = challenge.status === "ready" ? challenge.report : null;
   const taskLooksVague = Boolean(task.trim() && task.trim().split(/\s+/).length < 5);
@@ -300,27 +270,15 @@ export default function App() {
     setVerification({ status: "running" });
     setChallenge({ status: "idle" });
     try {
-      const response = await fetch(
-        verificationMode === "automatic" ? "/api/verifications/automatic" : "/api/verifications",
-        {
-        body: JSON.stringify(
-          verificationMode === "automatic"
-            ? {
-                repository_path: repositoryPath,
-                task,
-                trace: trace || null,
-              }
-            : {
-                repository_path: repositoryPath,
-                task,
-                patch,
-                trace: trace || null,
-              },
-        ),
+      const response = await fetch("/api/verifications/automatic", {
+        body: JSON.stringify({
+          repository_path: repositoryPath,
+          task,
+          trace: null,
+        }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
-      },
-      );
+      });
       const payload = (await response.json()) as VerificationReport | { detail?: string };
       if (!response.ok) {
         throw new Error("detail" in payload ? payload.detail : "Unable to start verification.");
@@ -461,11 +419,6 @@ export default function App() {
           </span>
         </a>
 
-        <nav className="topnav" aria-label="Workspace sections">
-          <span className="topnav-item topnav-item-active">Verifier</span>
-          <span className="topnav-item">Model lab</span>
-        </nav>
-
         <div className="topbar-controls">
           <span className="local-mode">
             <i aria-hidden="true" />
@@ -491,39 +444,9 @@ export default function App() {
             </p>
           </div>
 
-          <aside className="briefing-card" aria-label="Verdict protocol">
-            <div className="briefing-topline">
-              <span>Verdict protocol</span>
-              <span className="protocol-live">Ready</span>
-            </div>
-            <p>Every verdict needs more than a green test suite.</p>
-            <div className="protocol-points">
-              <span>Intent</span>
-              <i aria-hidden="true" />
-              <span>Challenge</span>
-              <i aria-hidden="true" />
-              <span>Evidence</span>
-            </div>
-          </aside>
         </section>
 
         <section className="workspace-stage" aria-labelledby="review-heading">
-          <aside className="stage-rail" aria-label="Verification stages">
-            <p className="rail-label">Runbook</p>
-            <ol>
-              {verificationSteps.map(([number, title, body], index) => (
-                <li className={index === 0 ? "stage-active" : ""} key={number}>
-                  <span>{number}</span>
-                  <div>
-                    <strong>{title}</strong>
-                    <small>{body}</small>
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <p className="rail-footnote">Phase 3<br />Local challenge</p>
-          </aside>
-
           <section className="review-card">
             <div className="review-card-topline">
               <span className="section-id">Verification request</span>
@@ -542,66 +465,28 @@ export default function App() {
             </div>
 
             <form onSubmit={startVerification}>
-              <div className="mode-switch" aria-label="Change input mode">
-                <button
-                  aria-pressed={verificationMode === "automatic"}
-                  className={verificationMode === "automatic" ? "mode-active" : ""}
-                  onClick={() => {
-                    setVerificationMode("automatic");
-                    setVerification({ status: "idle" });
-                  }}
-                  type="button"
-                >
-                  Automatic discovery
-                </button>
-                <button
-                  aria-pressed={verificationMode === "manual"}
-                  className={verificationMode === "manual" ? "mode-active" : ""}
-                  onClick={() => {
-                    setVerificationMode("manual");
-                    setVerification({ status: "idle" });
-                  }}
-                  type="button"
-                >
-                  Explicit patch
-                </button>
-              </div>
-
-              <div className="field-grid">
-                <div className="path-field">
-                  <label htmlFor="repository">Project path</label>
-                  <div className="path-input-row">
-                    <input
-                      id="repository"
-                      name="repository"
-                      onChange={(event) => updateRepositoryPath(event.target.value)}
-                      placeholder="/path/to/project"
-                      type="text"
-                      value={repositoryPath}
-                    />
-                    <button
-                      className="browse-folders"
-                      onClick={() => setDirectoryPickerOpen(true)}
-                      type="button"
-                    >
-                      Browse
-                    </button>
-                  </div>
-                </div>
-
-                <label htmlFor="trace">
-                  <span>
-                    Agent trace <em>Optional</em>
-                  </span>
+              {state.status === "error" ? (
+                <p className="project-error" role="alert">{state.message}</p>
+              ) : null}
+              <div className="path-field">
+                <label htmlFor="repository">Project folder</label>
+                <div className="path-input-row">
                   <input
-                    id="trace"
-                    name="trace"
-                    onChange={(event) => setTrace(event.target.value)}
-                    placeholder="Select the agent's execution trace"
+                    id="repository"
+                    name="repository"
+                    onChange={(event) => updateRepositoryPath(event.target.value)}
+                    placeholder="Choose the project to verify"
                     type="text"
-                    value={trace}
+                    value={repositoryPath}
                   />
-                </label>
+                  <button
+                    className="browse-folders"
+                    onClick={() => setDirectoryPickerOpen(true)}
+                    type="button"
+                  >
+                    Browse
+                  </button>
+                </div>
               </div>
 
               <label htmlFor="task">
@@ -622,8 +507,7 @@ export default function App() {
                 </p>
               ) : null}
 
-              {verificationMode === "automatic" ? (
-                <section className="project-discovery" aria-label="Automatic change discovery">
+              <section className="project-discovery" aria-label="Automatic change discovery">
                   <div className="discovery-action">
                     <div>
                       <strong>Automatic change discovery</strong>
@@ -687,39 +571,17 @@ export default function App() {
                       ) : null}
                     </div>
                   ) : null}
-                </section>
-              ) : (
-                <label htmlFor="patch">
-                  <span>
-                    Candidate patch <em>Advanced</em>
-                  </span>
-                  <textarea
-                    className="code-input"
-                    id="patch"
-                    name="patch"
-                    onChange={(event) => setPatch(event.target.value)}
-                    placeholder="Paste a complete unified diff…"
-                    rows={8}
-                    value={patch}
-                  />
-                </label>
-              )}
+              </section>
 
               <div className="form-footer">
                 <button disabled={!canStartVerification || verification.status === "running"} type="submit">
                   <span>
-                    {verification.status === "running"
-                      ? "Verifying…"
-                      : verificationMode === "automatic"
-                        ? "Verify detected changes"
-                        : "Verify explicit patch"}
+                    {verification.status === "running" ? "Verifying…" : "Verify detected changes"}
                   </span>
                   <i aria-hidden="true">↗</i>
                 </button>
                 <p>
-                  {verificationMode === "automatic"
-                    ? "No patch knowledge required. AgentProof compares the correct approved baseline."
-                    : "Advanced reproducibility mode for an exact supplied change."}
+                  No patch knowledge required. AgentProof compares the correct approved baseline.
                 </p>
               </div>
             </form>
@@ -914,58 +776,6 @@ export default function App() {
           </aside>
         </section>
 
-        <section className="evaluation" aria-labelledby="evaluation-heading">
-          <div className="evaluation-heading">
-            <div>
-              <p className="card-kicker">Model selection</p>
-              <h2 id="evaluation-heading">Evaluation, made explicit.</h2>
-            </div>
-            <p>
-              All candidates receive identical patches, prompts, context limits, and deterministic
-              settings. Correctness is the gate; speed and resource use break ties.
-            </p>
-          </div>
-
-          {state.status === "ready" ? (
-            <div className="evaluation-grid">
-              <div className="candidate-list" aria-label="Model candidates">
-                <div className="list-header">
-                  <span>Candidate models</span>
-                  <span>Benchmark queue</span>
-                </div>
-                {state.rubric.candidates.map((candidate, index) => (
-                  <div className="candidate-row" key={candidate}>
-                    <span>0{index + 1}</span>
-                    <strong>{candidate}</strong>
-                    <i>Queued</i>
-                  </div>
-                ))}
-              </div>
-
-              <div className="rubric-list">
-                <div className="list-header">
-                  <span>Weighted score</span>
-                  <span>{state.rubric.total_weight} points</span>
-                </div>
-                {state.rubric.categories.map((category) => (
-                  <div className="rubric-row" key={category.key}>
-                    <span>{category.label}</span>
-                    <div>
-                      <i aria-hidden="true">
-                        <b style={{ width: `${category.weight}%` }} />
-                      </i>
-                      <strong>{category.weight}%</strong>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="state-card" role={state.status === "error" ? "alert" : "status"}>
-              {state.status === "error" ? state.message : "Loading the evaluation contract…"}
-            </div>
-          )}
-        </section>
       </div>
 
       <footer>

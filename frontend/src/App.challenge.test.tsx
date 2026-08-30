@@ -4,12 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
 const health = { status: "ok", service: "agentproof", version: "0.3.0" };
-const rubric = {
-  candidates: ["Qwen3.6 27B Q6"],
-  categories: [],
-  total_weight: 100,
-  correctness_is_gate: true,
-};
 const deterministicReport = {
   run_id: "run-20260830T100000Z-1234abcd",
   verdict: "INCONCLUSIVE",
@@ -17,7 +11,7 @@ const deterministicReport = {
   repository_id: null,
   baseline_id: null,
   baseline_manifest_digest: null,
-  change_source: "manual_patch",
+  change_source: "approved_baseline",
   patch_normalized: false,
   protected_inputs_changed: [
     "backend/tests/test_challenges.py",
@@ -60,27 +54,43 @@ afterEach(() => {
 
 describe("independent local-model challenge", () => {
   it("runs after deterministic evidence and presents the execution-owned verdict", async () => {
+    const inspection = {
+      repository_id: "project-1234567890abcdef1234567890abcdef",
+      name: "service",
+      current_path: "/tmp/service",
+      path_changed: false,
+      identity_kind: "git",
+      current_digest: "b".repeat(64),
+      current_file_count: 2,
+      baseline_count: 1,
+      latest_baseline: {
+        baseline_id: "baseline-20260830T000000Z-1234abcd",
+        created_at: "2026-08-30T00:00:00Z",
+        parent_baseline_id: null,
+        file_count: 2,
+      },
+      changes: [{ path: "service.py", status: "modified", previous_path: null }],
+      current_state_audit: null,
+    };
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(health), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(rubric), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(inspection), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(deterministicReport), { status: 201 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(challengeReport), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    await screen.findByText("Qwen3.6 27B Q6");
-    fireEvent.click(screen.getByRole("button", { name: /explicit patch/i }));
-    fireEvent.change(screen.getByLabelText(/project path/i), {
+    await screen.findAllByText("Backend connected · v0.3.0");
+    fireEvent.change(screen.getByLabelText(/project folder/i), {
       target: { value: "/tmp/service" },
     });
     fireEvent.change(screen.getByLabelText(/original task or issue/i), {
       target: { value: "Change the service value from 1 to 2." },
     });
-    fireEvent.change(screen.getByLabelText(/^candidate patch/i), {
-      target: { value: "diff --git a/service.py b/service.py" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /verify explicit patch/i }));
+    fireEvent.click(screen.getByRole("button", { name: /inspect project/i }));
+    expect(await screen.findByText("1 unverified change(s)")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /verify detected changes/i }));
 
     expect(await screen.findByRole("button", { name: /run local challenge/i })).toBeEnabled();
     expect(

@@ -4,18 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
 const health = { status: "ok", service: "agentproof", version: "0.3.0" };
-const rubric = {
-  candidates: ["Qwen3.6 27B Q6", "Qwen3-Coder 30B", "Qwen2.5-Coder 7B"],
-  categories: [
-    { key: "unsafe_patch_detection", label: "Correctly catches unsafe patches", weight: 40 },
-    { key: "correct_patch_acceptance", label: "Does not block correct patches", weight: 20 },
-    { key: "executable_tests", label: "Produces relevant, executable tests", weight: 20 },
-    { key: "execution_time", label: "Execution time", weight: 10 },
-    { key: "resource_efficiency", label: "Tokens and memory usage", weight: 10 },
-  ],
-  total_weight: 100,
-  correctness_is_gate: true,
-};
 
 const unsafeReport = {
   run_id: "run-20260829T180000Z-1234abcd",
@@ -23,7 +11,7 @@ const unsafeReport = {
   summary: "The immutable baseline test suite failed after the patch was applied.",
   repository_id: null,
   baseline_id: null,
-  change_source: "manual_patch",
+  change_source: "approved_baseline",
   patch_normalized: false,
   protected_inputs_changed: [],
   changed_files: [
@@ -52,11 +40,10 @@ afterEach(() => {
 });
 
 describe("AgentProof foundation", () => {
-  it("shows backend state and the server-owned model rubric", async () => {
+  it("shows the focused verifier and backend state", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify(health), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(rubric), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify(health), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
@@ -70,9 +57,10 @@ describe("AgentProof foundation", () => {
       expect(screen.getAllByText("Backend connected · v0.3.0")).toHaveLength(2);
     });
 
-    expect(screen.getByText("Qwen3.6 27B Q6")).toBeInTheDocument();
-    expect(screen.getByText("Correctly catches unsafe patches")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Model lab")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/agent trace/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /explicit patch/i })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("reports a backend failure without pretending verification is available", async () => {
@@ -93,47 +81,61 @@ describe("AgentProof foundation", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(health), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(rubric), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(directoryListing), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    await screen.findByText("Qwen3.6 27B Q6");
+    await screen.findAllByText("Backend connected · v0.3.0");
     fireEvent.click(screen.getByRole("button", { name: "Browse" }));
     expect(
       await screen.findByRole("heading", { name: "Choose a project folder" }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Use this folder" }));
 
-    expect(screen.getByLabelText("Project path")).toHaveValue(
+    expect(screen.getByLabelText("Project folder")).toHaveValue(
       "/Users/reviewer/agent-proof-demo",
     );
     expect(screen.getByRole("button", { name: "Inspect project" })).toBeEnabled();
   });
 
   it("submits the user-approved inputs and renders an unsafe deterministic verdict", async () => {
+    const inspection = {
+      repository_id: "project-1234567890abcdef1234567890abcdef",
+      name: "calculator",
+      current_path: "/tmp/calculator",
+      path_changed: false,
+      identity_kind: "git",
+      current_digest: "b".repeat(64),
+      current_file_count: 3,
+      baseline_count: 1,
+      latest_baseline: {
+        baseline_id: "baseline-20260830T000000Z-1234abcd",
+        created_at: "2026-08-30T00:00:00Z",
+        parent_baseline_id: null,
+        file_count: 3,
+      },
+      changes: [{ path: "calculator.py", status: "modified", previous_path: null }],
+      current_state_audit: null,
+    };
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(health), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(rubric), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(inspection), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(unsafeReport), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
 
-    await screen.findByText("Qwen3.6 27B Q6");
-    fireEvent.click(screen.getByRole("button", { name: /explicit patch/i }));
-    fireEvent.change(screen.getByLabelText(/project path/i), {
+    await screen.findAllByText("Backend connected · v0.3.0");
+    fireEvent.change(screen.getByLabelText(/project folder/i), {
       target: { value: "/tmp/calculator" },
     });
     fireEvent.change(screen.getByLabelText(/original task or issue/i), {
       target: { value: "Keep the calculator correct." },
     });
-    fireEvent.change(screen.getByLabelText(/^candidate patch/i), {
-      target: { value: "diff --git a/calculator.py b/calculator.py" },
-    });
-
-    const submit = screen.getByRole("button", { name: /verify explicit patch/i });
+    fireEvent.click(screen.getByRole("button", { name: /inspect project/i }));
+    expect(await screen.findByText("1 unverified change(s)")).toBeInTheDocument();
+    const submit = screen.getByRole("button", { name: /verify detected changes/i });
     expect(submit).toBeEnabled();
     fireEvent.click(submit);
 
@@ -142,7 +144,7 @@ describe("AgentProof foundation", () => {
     expect(screen.getByText("Patch preflight")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenLastCalledWith(
-      "/api/verifications",
+      "/api/verifications/automatic",
       expect.objectContaining({ method: "POST" }),
     );
   });
@@ -184,14 +186,13 @@ describe("AgentProof foundation", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(health), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(rubric), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(inspection), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(approved), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    await screen.findByText("Qwen3.6 27B Q6");
-    fireEvent.change(screen.getByLabelText(/project path/i), {
+    await screen.findAllByText("Backend connected · v0.3.0");
+    fireEvent.change(screen.getByLabelText(/project folder/i), {
       target: { value: "/tmp/calculator" },
     });
     fireEvent.change(screen.getByLabelText(/original task or issue/i), {

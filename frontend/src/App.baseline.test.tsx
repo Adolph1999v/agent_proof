@@ -4,12 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
 const health = { status: "ok", service: "agentproof", version: "0.3.0" };
-const rubric = {
-  candidates: ["Qwen3.6 27B Q6", "Qwen3-Coder 30B", "Qwen2.5-Coder 7B"],
-  categories: [],
-  total_weight: 100,
-  correctness_is_gate: true,
-};
 
 afterEach(() => {
   cleanup();
@@ -42,13 +36,12 @@ describe("approved baseline comparison", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(health), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(rubric), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(inspection), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    await screen.findByText("Qwen3.6 27B Q6");
-    fireEvent.change(screen.getByLabelText(/project path/i), {
+    await screen.findAllByText("Backend connected · v0.3.0");
+    fireEvent.change(screen.getByLabelText(/project folder/i), {
       target: { value: "/tmp/agent_proof" },
     });
     fireEvent.click(screen.getByRole("button", { name: /inspect project/i }));
@@ -111,14 +104,13 @@ describe("approved baseline comparison", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(health), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(rubric), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(inspection), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(report), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    await screen.findByText("Qwen3.6 27B Q6");
-    fireEvent.change(screen.getByLabelText(/project path/i), {
+    await screen.findAllByText("Backend connected · v0.3.0");
+    fireEvent.change(screen.getByLabelText(/project folder/i), {
       target: { value: "/tmp/agent_proof" },
     });
     fireEvent.change(screen.getByLabelText(/original task or issue/i), {
