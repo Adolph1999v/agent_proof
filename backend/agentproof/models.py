@@ -27,7 +27,12 @@ class ModelEvaluationRubric(BaseModel):
 
 class CapabilitiesResponse(BaseModel):
     phase: str
-    status: Literal["foundation", "deterministic_verifier", "baseline_manager"]
+    status: Literal[
+        "foundation",
+        "deterministic_verifier",
+        "baseline_manager",
+        "model_challenges",
+    ]
     implemented: list[str]
     planned: list[str]
 
@@ -195,3 +200,52 @@ class VerificationReport(BaseModel):
     patch_check: CommandEvidence
     test_execution: CommandEvidence
     evidence_path: str
+
+
+class IndependentChallengeRequest(BaseModel):
+    run_id: str = Field(pattern=r"^run-\d{8}T\d{6}Z-[0-9a-f]{8}$")
+    task: str = Field(min_length=1, max_length=20_000)
+    model_url: str = Field(min_length=1, max_length=2048)
+    model_name: str = Field(min_length=1, max_length=512)
+    model_timeout_seconds: int = Field(default=300, ge=30, le=600)
+    test_timeout_seconds: int = Field(default=45, ge=1, le=120)
+
+    @field_validator("task", "model_url", "model_name")
+    @classmethod
+    def challenge_text_must_not_be_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("This field must not be blank.")
+        return value
+
+
+class ChallengeProposalEvidence(BaseModel):
+    behavior_mode: Literal["change", "preserve"]
+    summary: str
+    invariants: list[str]
+    test_sha256: str
+    test_path: str
+
+
+class ModelRunEvidence(BaseModel):
+    provider: str
+    model: str
+    prompt_sha256: str
+    response_sha256: str
+    duration_ms: int = Field(ge=0)
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+
+
+class IndependentChallengeReport(BaseModel):
+    challenge_id: str
+    created_at: datetime
+    source_run_id: str
+    verdict: Literal["VERIFIED", "UNSAFE", "INCONCLUSIVE"]
+    summary: str
+    proposal: ChallengeProposalEvidence
+    model: ModelRunEvidence
+    baseline_execution: CommandEvidence
+    candidate_execution: CommandEvidence
+    evidence_path: str
+    trajectory_path: str

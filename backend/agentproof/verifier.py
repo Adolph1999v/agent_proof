@@ -494,6 +494,7 @@ class DeterministicVerifier:
             return []
 
         files: list[ChangedFile] = []
+        recorded_paths: set[str] = set()
         for line in result.output.splitlines():
             parts = line.split("\t", maxsplit=2)
             if len(parts) != 3:
@@ -507,7 +508,34 @@ class DeterministicVerifier:
                     protected=path in protected_before,
                 )
             )
-        return files
+            recorded_paths.add(path)
+
+        untracked = self._run(
+            ["git", "-C", str(workspace), "ls-files", "--others", "--exclude-standard", "-z"],
+            timeout_seconds=GIT_TIMEOUT_SECONDS,
+        )
+        if untracked.returncode == 0 and not untracked.timed_out:
+            for path in sorted(value for value in untracked.output.split("\0") if value):
+                if path in recorded_paths:
+                    continue
+                relative = Path(path)
+                source = workspace / relative
+                if relative.is_absolute() or ".." in relative.parts or not source.is_file():
+                    continue
+                try:
+                    content = source.read_text(encoding="utf-8")
+                    added_lines = len(content.splitlines())
+                except UnicodeDecodeError:
+                    added_lines = 0
+                files.append(
+                    ChangedFile(
+                        path=path,
+                        added_lines=added_lines,
+                        deleted_lines=0,
+                        protected=False,
+                    )
+                )
+        return sorted(files, key=lambda changed: changed.path)
 
     def _report(
         self,

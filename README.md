@@ -6,8 +6,7 @@ A coding agent can say that a task is complete while accidentally removing requi
 
 ## Current status
 
-Phase 2.5 provides automatic project discovery and isolated baseline histories on top of the
-deterministic verifier:
+Phase 3 adds local-model independent challenges to the automatic baseline workflow:
 
 - FastAPI backend with health, capability, and model-evaluation-rubric endpoints.
 - React + Vite TypeScript interface connected to the backend.
@@ -24,15 +23,23 @@ deterministic verifier:
 - Immutable, content-addressed baselines with parent history and human approval.
 - Current-state audits for projects that do not yet have an older baseline.
 - Automatic added, modified, deleted, and renamed-file discovery against the latest approved state.
+- A localhost-only OpenAI-compatible adapter for LM Studio and Ollama.
+- Single-request model admission so memory-bound machines never run parallel model calls.
+- Structured invariant and pytest challenge generation with static safety validation.
+- Separate baseline and candidate challenge workspaces with deterministic verdict rules.
+- Complete local trajectories containing prompts, model responses, token usage, generated tests,
+  command output, and hashes.
 
-The Phase 2 adapter intentionally supports pytest repositories only. Local model execution, invariants,
-and adversarial-test generation begin in later phases.
+The implemented model challenge adapter intentionally supports pytest repositories only. Other test
+frameworks and stronger operating-system/container isolation remain future work.
 
-### Honest Phase 2 verdicts
+### Honest verdicts
 
 - `UNSAFE`: the patch does not apply, changes protected baseline inputs, or causes the baseline suite to fail.
 - `INCONCLUSIVE`: the baseline passes, times out, or cannot be run. Passing existing tests alone is not proof
   that the task was solved, so Phase 2 does not emit `VERIFIED`.
+- `VERIFIED`: the preserved baseline suite passes and an accepted independent challenge produces the
+  expected baseline/candidate evidence.
 
 See [docs/DETERMINISTIC_VERIFIER.md](docs/DETERMINISTIC_VERIFIER.md) for the security boundary and
 reproducible evidence schema.
@@ -54,6 +61,8 @@ AgentProof is an application served locally, not a hosted service. The browser p
 - `uv` 0.11 or newer
 - Node.js 22 or newer
 - npm 10 or newer
+- Optional for Phase 3: LM Studio or Ollama serving one loaded model through a localhost
+  OpenAI-compatible endpoint
 
 Python 3.12 is installed and managed locally by `uv`. Python dependencies are installed only inside `.venv`; frontend dependencies remain inside `frontend/node_modules`.
 
@@ -91,13 +100,21 @@ make check
 
 See [docs/REPRODUCTION.md](docs/REPRODUCTION.md) for clean-environment and Windows commands.
 
+The normal quality gate does not download or run a model. With one model already loaded in LM Studio
+on port 1234, the transparent synthetic integration check is:
+
+```bash
+make phase3-smoke
+```
+
 ## Planned phases
 
 1. **Foundation:** reproducible application shell, documentation, and quality gates.
 2. **Deterministic verifier:** patch ingestion, immutable test snapshots, diff checks, isolated execution, and evidence schemas. **Implemented for pytest repositories.**
 3. **Baseline manager (Phase 2.5):** automatic discovery, stable project identity, current-state audit, immutable baseline approval, and isolated histories. **Implemented.**
-4. **Model bake-off:** compare Qwen3.6 27B Q6, Qwen3-Coder 30B, and Qwen2.5-Coder 7B on authentic patches.
-5. **Agent workflow:** invariant extraction, adversarial-test generation, bounded retries, and human checkpoints.
+4. **Independent model challenge:** localhost model connection, invariant extraction, generated pytest
+   challenge, baseline/candidate execution, and trajectories. **Implemented.**
+5. **Model bake-off:** compare Qwen3.6 27B Q6, Qwen3-Coder 30B, and Qwen2.5-Coder 7B on authentic patches.
 6. **Evaluation and submission:** ten or more cases, fair baseline, measured improvement, representative trajectories, and video-ready workflow.
 
 ## Project layout

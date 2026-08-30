@@ -29,8 +29,16 @@ Task + project path + optional trace
  original tests + fixed pytest baseline
                  |
                  v
+      Local model challenge (Phase 3)
+ untrusted invariants + generated pytest
+                 |
+                 v
+   Baseline / candidate challenge replay
+       deterministic evidence rules
+                 |
+                 v
        Evidence-backed verdict
-       UNSAFE / INCONCLUSIVE
+  UNSAFE / INCONCLUSIVE / VERIFIED
                  |
                  v
              Human review
@@ -47,7 +55,10 @@ Task + project path + optional trace
   baseline exists. A passing audit is never described as change verification.
 - **Automatic change adapter:** turns a baseline-to-current comparison into an exact internal Git
   patch without asking the user to write one.
-- **Model adapter:** will support local Ollama or another OpenAI-compatible endpoint. Model output is always untrusted.
+- **Model adapter:** calls only a localhost LM Studio or Ollama OpenAI-compatible endpoint, uses
+  deterministic settings, and admits one request at a time. Model output is always untrusted.
+- **Challenge runner:** validates the structured model response, rejects dangerous or trivial generated
+  tests, then executes the accepted test separately on baseline and candidate workspaces.
 - **Disposable workspace:** isolates patch application and repository commands from the original checkout.
 - **Trajectory recorder:** stores prompts, tool calls, responses, retries, decisions, and evidence references.
 
@@ -76,6 +87,21 @@ identity-specific directory. A moved project retains its identity, while an unre
 same path receives a different identity. A duplicated live identity is rejected rather than merging
 histories implicitly. Git baselines must also belong to the current commit lineage; incompatible branch
 histories fail closed instead of being compared automatically.
+
+## Phase 3 model boundary
+
+The model receives the natural-language task, a candidate application patch with test files filtered
+out, and bounded excerpts from changed Python application files. Existing and candidate-added test
+source is deliberately excluded so the model cannot merely copy candidate-controlled evidence. The
+model returns invariants, a `change` or `preserve` expectation, and one pytest module under a strict
+JSON schema.
+
+AgentProof statically rejects generated tests that use network, subprocess, dynamic execution,
+filesystem mutation, monkeypatching, skip/xfail, or constant assertions. It then runs the accepted test
+in two fresh clones: approved baseline and candidate. `VERIFIED` requires the execution pattern promised
+by the proposal; `UNSAFE` requires a concrete candidate regression; ambiguous patterns remain
+`INCONCLUSIVE`. Static validation is not a complete operating-system sandbox, so production use still
+requires the planned container-level executor.
 
 ## Cross-platform decision
 

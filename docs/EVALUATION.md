@@ -48,6 +48,20 @@ Every run will record:
 - Wall-clock time, retry count, and peak memory where available.
 - Final deterministic verdict and supporting evidence identifiers.
 
+## Phase 3 integration smoke result
+
+The first live integration run used LM Studio with the local Qwen3.6 27B Q6 artifact, a 16,384-token
+context, one prediction slot, temperature 0, seed 42, and structured JSON-schema output. The fixed
+synthetic task asked a greeting function to trim whitespace and use `friend` for a blank name while the
+visible baseline test covered only a normal name.
+
+The model generated a focused whitespace-only-name challenge. It failed on the approved baseline and
+passed on the candidate, producing `VERIFIED` under deterministic rules. The request used 409 prompt
+tokens, 645 completion tokens, and 37,369 ms of model time. Evidence is stored under run
+`run-20260830T084507Z-09667f0c` locally. This proves the Phase 3 integration path, not broad model quality;
+it is not part of the headline bake-off score. A second run after restricting the generated-test
+environment produced the same invariants and execution verdict with the same token counts.
+
 ## Baseline
 
 The Phase 2 baseline is the repository's existing test suite run against the candidate patch without

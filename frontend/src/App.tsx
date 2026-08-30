@@ -48,6 +48,31 @@ type VerificationReport = {
   evidence_path: string;
 };
 
+type IndependentChallengeReport = {
+  challenge_id: string;
+  source_run_id: string;
+  verdict: "VERIFIED" | "UNSAFE" | "INCONCLUSIVE";
+  summary: string;
+  proposal: {
+    behavior_mode: "change" | "preserve";
+    summary: string;
+    invariants: string[];
+    test_sha256: string;
+    test_path: string;
+  };
+  model: {
+    provider: string;
+    model: string;
+    duration_ms: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+  };
+  baseline_execution: CommandEvidence;
+  candidate_execution: CommandEvidence;
+  evidence_path: string;
+  trajectory_path: string;
+};
+
 type ProjectChange = {
   path: string;
   status: "added" | "modified" | "deleted" | "renamed";
@@ -93,6 +118,12 @@ type ProjectState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "ready"; project: ProjectInspection }
+  | { status: "error"; message: string };
+
+type ChallengeState =
+  | { status: "idle" }
+  | { status: "running" }
+  | { status: "ready"; report: IndependentChallengeReport }
   | { status: "error"; message: string };
 
 const verificationSteps = [
@@ -141,6 +172,9 @@ export default function App() {
   const [trace, setTrace] = useState("");
   const [projectState, setProjectState] = useState<ProjectState>({ status: "idle" });
   const [verification, setVerification] = useState<VerificationState>({ status: "idle" });
+  const [challenge, setChallenge] = useState<ChallengeState>({ status: "idle" });
+  const [modelUrl, setModelUrl] = useState("http://127.0.0.1:1234/v1");
+  const [modelName, setModelName] = useState("agentproof-qwen3.6-27b");
 
   useEffect(() => {
     let active = true;
@@ -177,19 +211,28 @@ export default function App() {
             inspectedProject.changes.length,
         );
   const report = verification.status === "ready" ? verification.report : null;
-  const failureEvidence = report
-    ? report.patch_check.status === "failed"
-      ? report.patch_check.output_preview
-      : report.test_execution.status === "failed" || report.test_execution.status === "timed_out"
-        ? report.test_execution.output_preview
+  const challengeReport = challenge.status === "ready" ? challenge.report : null;
+  const activeVerdict = challengeReport?.verdict ?? report?.verdict;
+  const failureEvidence = challengeReport
+    ? challengeReport.candidate_execution.status === "failed"
+      ? challengeReport.candidate_execution.output_preview
+      : challengeReport.baseline_execution.status === "failed"
+        ? challengeReport.baseline_execution.output_preview
         : null
-    : null;
+    : report
+      ? report.patch_check.status === "failed"
+        ? report.patch_check.output_preview
+        : report.test_execution.status === "failed" || report.test_execution.status === "timed_out"
+          ? report.test_execution.output_preview
+          : null
+      : null;
 
   async function startVerification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canStartVerification || verification.status === "running") return;
 
     setVerification({ status: "running" });
+    setChallenge({ status: "idle" });
     try {
       const response = await fetch(
         verificationMode === "automatic" ? "/api/verifications/automatic" : "/api/verifications",
@@ -229,6 +272,7 @@ export default function App() {
     if (!repositoryPath.trim() || projectState.status === "loading") return;
     setProjectState({ status: "loading" });
     setVerification({ status: "idle" });
+    setChallenge({ status: "idle" });
     try {
       const response = await fetch("/api/projects/inspect", {
         body: JSON.stringify({ repository_path: repositoryPath }),
@@ -270,10 +314,45 @@ export default function App() {
       }
       setProjectState({ status: "ready", project: payload.project });
       setVerification({ status: "idle" });
+      setChallenge({ status: "idle" });
     } catch (error: unknown) {
       setProjectState({
         status: "error",
         message: error instanceof Error ? error.message : "Unable to approve this baseline.",
+      });
+    }
+  }
+
+  async function runIndependentChallenge() {
+    if (
+      !report ||
+      report.verdict !== "INCONCLUSIVE" ||
+      !modelUrl.trim() ||
+      !modelName.trim() ||
+      challenge.status === "running"
+    ) return;
+
+    setChallenge({ status: "running" });
+    try {
+      const response = await fetch("/api/challenges", {
+        body: JSON.stringify({
+          run_id: report.run_id,
+          task,
+          model_url: modelUrl,
+          model_name: modelName,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json()) as IndependentChallengeReport | { detail?: string };
+      if (!response.ok) {
+        throw new Error("detail" in payload ? payload.detail : "Unable to run the challenge.");
+      }
+      setChallenge({ status: "ready", report: payload as IndependentChallengeReport });
+    } catch (error: unknown) {
+      setChallenge({
+        status: "error",
+        message: error instanceof Error ? error.message : "Unable to run the challenge.",
       });
     }
   }
@@ -354,7 +433,7 @@ export default function App() {
                 </li>
               ))}
             </ol>
-            <p className="rail-footnote">Phase 2.5<br />Baseline manager</p>
+            <p className="rail-footnote">Phase 3<br />Local challenge</p>
           </aside>
 
           <section className="review-card">
@@ -508,8 +587,8 @@ export default function App() {
                         </small>
                       </div>
                       {(!inspectedProject.latest_baseline ||
-                        (report?.verdict === "INCONCLUSIVE" &&
-                          report.change_source === "approved_baseline")) ? (
+                        (challengeReport?.verdict === "VERIFIED" &&
+                          report?.change_source === "approved_baseline")) ? (
                         <button
                           className="approve-baseline"
                           disabled={
@@ -563,13 +642,90 @@ export default function App() {
                 </p>
               </div>
             </form>
+
+            {report?.verdict === "INCONCLUSIVE" && report.test_execution.status === "passed" ? (
+              <section className="challenge-panel" aria-labelledby="challenge-heading">
+                <div className="challenge-heading">
+                  <div>
+                    <p className="card-kicker">Step 02</p>
+                    <h3 id="challenge-heading">Run an independent challenge</h3>
+                  </div>
+                  <span>One local model at a time</span>
+                </div>
+
+                <div className="field-grid">
+                  <label htmlFor="model-url">
+                    <span>Local model endpoint</span>
+                    <input
+                      id="model-url"
+                      onChange={(event) => setModelUrl(event.target.value)}
+                      spellCheck="false"
+                      value={modelUrl}
+                    />
+                  </label>
+                  <label htmlFor="model-name">
+                    <span>Loaded model name</span>
+                    <input
+                      id="model-name"
+                      onChange={(event) => setModelName(event.target.value)}
+                      spellCheck="false"
+                      value={modelName}
+                    />
+                  </label>
+                </div>
+
+                {challenge.status === "error" ? (
+                  <p className="challenge-error" role="alert">{challenge.message}</p>
+                ) : null}
+
+                {challengeReport ? (
+                  <div className="challenge-evidence">
+                    <div>
+                      <span>Generated invariant</span>
+                      <strong>{challengeReport.proposal.invariants[0]}</strong>
+                    </div>
+                    <div>
+                      <span>Baseline / candidate</span>
+                      <strong>
+                        {readableCheckStatus(challengeReport.baseline_execution.status)} / {" "}
+                        {readableCheckStatus(challengeReport.candidate_execution.status)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Model usage</span>
+                      <strong>
+                        {challengeReport.model.prompt_tokens + challengeReport.model.completion_tokens}
+                        {" tokens"}
+                      </strong>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="challenge-action">
+                  <button
+                    disabled={
+                      !modelUrl.trim() || !modelName.trim() || challenge.status === "running"
+                    }
+                    onClick={runIndependentChallenge}
+                    type="button"
+                  >
+                    {challenge.status === "running" ? "Generating and testing…" : "Run local challenge"}
+                  </button>
+                  <p>The model proposes the test. AgentProof executes it and owns the verdict.</p>
+                </div>
+              </section>
+            ) : null}
           </section>
 
           <aside className="outcome-card" aria-labelledby="outcome-heading">
             <div className="outcome-topline">
               <span>Live state</span>
-              <span className={`not-started ${report ? `verdict-${report.verdict.toLowerCase()}` : ""}`}>
-                {verification.status === "running" ? "Running" : report?.verdict ?? "Not started"}
+              <span className={`not-started ${activeVerdict ? `verdict-${activeVerdict.toLowerCase()}` : ""}`}>
+                {challenge.status === "running"
+                  ? "Challenging"
+                  : verification.status === "running"
+                    ? "Running"
+                    : activeVerdict ?? "Not started"}
               </span>
             </div>
 
@@ -579,24 +735,46 @@ export default function App() {
             </div>
 
             <h2 id="outcome-heading">
-              {verification.status === "running"
+              {challenge.status === "running"
+                ? "Writing an independent test"
+                : verification.status === "running"
                 ? "Building disposable evidence"
-                : report?.verdict === "UNSAFE"
+                : activeVerdict === "VERIFIED"
+                  ? "Verified by an independent challenge"
+                  : activeVerdict === "UNSAFE"
                   ? "Unsafe change detected"
-                  : report
+                  : challengeReport
+                    ? "Challenge remains inconclusive"
+                    : report
                     ? "Needs an independent challenge"
                     : "Waiting for a request"}
             </h2>
             <p>
-              {verification.status === "error"
+              {challenge.status === "error"
+                ? challenge.message
+                : verification.status === "error"
                 ? verification.message
-                : report
+                : challengeReport
+                  ? challengeReport.summary
+                  : report
                   ? report.summary
                   : "AgentProof will challenge the patch, not simply summarize it. The final call remains with a human."}
             </p>
 
             <div className="evidence-list">
-              {(report
+              {(challengeReport
+                ? [
+                    ["Local model", challengeReport.model.model],
+                    [
+                      "Baseline challenge",
+                      readableCheckStatus(challengeReport.baseline_execution.status),
+                    ],
+                    [
+                      "Candidate challenge",
+                      readableCheckStatus(challengeReport.candidate_execution.status),
+                    ],
+                  ]
+                : report
                 ? [
                     [
                       "Patch preflight",
@@ -632,7 +810,11 @@ export default function App() {
               <span>Local API</span>
               <strong className={`status-${state.status}`}>{connectionLabel}</strong>
             </div>
-            {report ? <p className="evidence-path">Evidence: {report.evidence_path}</p> : null}
+            {challengeReport || report ? (
+              <p className="evidence-path">
+                Evidence: {challengeReport?.evidence_path ?? report?.evidence_path}
+              </p>
+            ) : null}
           </aside>
         </section>
 

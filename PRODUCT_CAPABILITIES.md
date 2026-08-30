@@ -75,6 +75,8 @@ Changelog links implemented behavior to evidence.
 ## Model evaluation
 
 - Run candidate models against identical repositories, tasks, patches, prompts, limits, and settings.
+- Serialize model execution so large local models are never benchmarked concurrently on memory-bound
+  machines.
 - Score unsafe-patch detection, correct-patch acceptance, executable-test quality, speed, tokens, and memory.
 - Treat serious false-safe results as a correctness failure rather than averaging them away.
 - Support local model runtimes and compatible local endpoints without requiring a paid API.
@@ -113,4 +115,3 @@ Changelog links implemented behavior to evidence.
 - `VERIFIED`: preserved baseline evidence and independent challenges support the requested behavior.
 - “Current checks pass”: the present project is healthy under available checks, but no historical comparison
   was possible.
-

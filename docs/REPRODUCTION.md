@@ -48,7 +48,7 @@ Set-Location frontend
 npm run dev -- --host 127.0.0.1
 ```
 
-## Expected Phase 2.5 result
+## Expected deterministic result
 
 - Backend tests pass.
 - Frontend tests pass.
@@ -59,4 +59,28 @@ npm run dev -- --host 127.0.0.1
 - A supported pytest repository produces an ignored local evidence report under `artifacts/runs/`.
 - Project identities and baseline histories remain isolated under `artifacts/projects/<repository-id>/`.
 
-No model download or API key is required for Phase 2.5.
+No model download or API key is required for setup, tests, linting, builds, project discovery, baseline
+management, or deterministic verification.
+
+## Optional Phase 3 local model
+
+AgentProof accepts an OpenAI-compatible endpoint on `127.0.0.1`, `localhost`, or `::1` only. It never
+sends repository context to a remote host. LM Studio's default endpoint is
+`http://127.0.0.1:1234/v1`; Ollama's is `http://127.0.0.1:11434/v1`.
+
+For the recorded LM Studio smoke run, exactly one existing model was loaded:
+
+```bash
+lms server start --port 1234 --bind 127.0.0.1
+lms load qwen/qwen3.6-27b --gpu max --context-length 16384 --parallel 1 \
+  --identifier agentproof-qwen3.6-27b --ttl 900 --yes
+make phase3-smoke
+```
+
+The model remains outside the repository and is not duplicated by AgentProof. The `--parallel 1`
+setting and AgentProof's process-wide request lock prevent concurrent inference. The 15-minute idle TTL
+releases memory automatically. A reviewer may use a smaller local model by entering its exact loaded
+identifier in the interface; correctness must be re-evaluated rather than assumed to transfer.
+
+The smoke case is synthetic and exists only to prove the end-to-end connection. Model selection claims
+must come from the pinned multi-case bake-off described in `docs/EVALUATION.md`.

@@ -18,3 +18,7 @@ Each submitted trajectory should remain understandable from instruction to outco
 - A redaction note for any removed credentials, private data, or irrelevant local paths.
 
 Representative excerpts are acceptable, but they must not hide failures or splice unrelated events into a misleading sequence. Raw local traces and generated reports belong in `artifacts/` and are not committed by default.
+
+Phase 3 challenge runs store `trajectory.json`, `report.json`, the generated test, and both disposable
+workspaces under `artifacts/runs/<run-id>/challenges/<challenge-id>/`. The trajectory records the full
+model prompt and response, so it must be reviewed for private source content before submission.

@@ -4,12 +4,15 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from agentproof import __version__
+from agentproof.challenges import ChallengeError, IndependentChallengeRunner
 from agentproof.models import (
     AutomaticVerificationRequest,
     BaselineApprovalRequest,
     BaselineApprovalResponse,
     CapabilitiesResponse,
     HealthResponse,
+    IndependentChallengeReport,
+    IndependentChallengeRequest,
     ModelEvaluationRubric,
     ProjectInspection,
     ProjectInspectionRequest,
@@ -36,6 +39,7 @@ app.add_middleware(
 
 verifier = DeterministicVerifier()
 project_store = ProjectStore()
+challenge_runner = IndependentChallengeRunner(verifier)
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -63,6 +67,26 @@ def capabilities() -> CapabilitiesResponse:
             "model bake-off",
             "invariant extraction",
             "adversarial-test generation",
+        ],
+    )
+
+
+@app.get("/api/challenges/capabilities", response_model=CapabilitiesResponse)
+def challenge_capabilities() -> CapabilitiesResponse:
+    return CapabilitiesResponse(
+        phase="3",
+        status="model_challenges",
+        implemented=[
+            "single-request local model adapter",
+            "structured invariant and pytest challenge generation",
+            "generated-test safety validation",
+            "deterministic baseline-versus-candidate challenge execution",
+            "local model prompt, response, usage, and command trajectories",
+        ],
+        planned=[
+            "model bake-off",
+            "multi-language challenge adapters",
+            "container-level execution isolation",
         ],
     )
 
@@ -134,3 +158,18 @@ def get_verification(run_id: str) -> VerificationReport:
         return verifier.get_report(run_id)
     except VerificationInputError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+
+
+@app.post(
+    "/api/challenges",
+    response_model=IndependentChallengeReport,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_independent_challenge(
+    request: IndependentChallengeRequest,
+) -> IndependentChallengeReport:
+    """Ask one local model for a test, then let deterministic execution own the verdict."""
+    try:
+        return challenge_runner.run(request)
+    except ChallengeError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
