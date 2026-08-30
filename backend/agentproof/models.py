@@ -26,8 +26,8 @@ class ModelEvaluationRubric(BaseModel):
 
 
 class CapabilitiesResponse(BaseModel):
-    phase: int
-    status: Literal["foundation", "deterministic_verifier"]
+    phase: str
+    status: Literal["foundation", "deterministic_verifier", "baseline_manager"]
     implemented: list[str]
     planned: list[str]
 
@@ -84,6 +84,94 @@ class ChangedFile(BaseModel):
     protected: bool
 
 
+class ProjectChange(BaseModel):
+    path: str
+    status: Literal["added", "modified", "deleted", "renamed"]
+    previous_path: str | None = None
+
+
+class BaselineSummary(BaseModel):
+    baseline_id: str
+    repository_id: str
+    created_at: datetime
+    parent_baseline_id: str | None = None
+    task: str
+    file_count: int = Field(ge=0)
+    total_bytes: int = Field(ge=0)
+    manifest_digest: str
+    source_commit: str | None = None
+    evidence_run_id: str | None = None
+
+
+class CurrentStateAudit(BaseModel):
+    status: Literal["passed", "failed", "timed_out", "not_supported"]
+    summary: str
+    test_execution: CommandEvidence
+    evidence_path: str
+
+
+class ProjectInspectionRequest(BaseModel):
+    repository_path: str = Field(min_length=1, max_length=4096)
+    timeout_seconds: int = Field(default=45, ge=1, le=120)
+
+    @field_validator("repository_path")
+    @classmethod
+    def repository_path_must_not_be_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Repository path must not be blank.")
+        return value
+
+
+class ProjectInspection(BaseModel):
+    repository_id: str
+    name: str
+    current_path: str
+    path_changed: bool
+    identity_kind: Literal["git", "folder"]
+    current_digest: str
+    current_file_count: int = Field(ge=0)
+    baseline_count: int = Field(ge=0)
+    latest_baseline: BaselineSummary | None = None
+    changes: list[ProjectChange]
+    current_state_audit: CurrentStateAudit | None = None
+
+
+class BaselineApprovalRequest(BaseModel):
+    repository_path: str = Field(min_length=1, max_length=4096)
+    expected_current_digest: str = Field(min_length=64, max_length=64)
+    task: str = Field(min_length=1, max_length=20_000)
+    evidence_run_id: str | None = Field(default=None, max_length=128)
+
+    @field_validator("repository_path", "task")
+    @classmethod
+    def approval_text_must_not_be_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("This field must not be blank.")
+        return value
+
+
+class BaselineApprovalResponse(BaseModel):
+    baseline: BaselineSummary
+    project: ProjectInspection
+
+
+class AutomaticVerificationRequest(BaseModel):
+    repository_path: str = Field(min_length=1, max_length=4096)
+    task: str = Field(min_length=1, max_length=20_000)
+    trace: str | None = Field(default=None, max_length=200_000)
+    timeout_seconds: int = Field(default=45, ge=1, le=120)
+
+    @field_validator("repository_path", "task")
+    @classmethod
+    def automatic_text_must_not_be_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("This field must not be blank.")
+        return value
+
+
 class VerificationReport(BaseModel):
     """Reproducible Phase 2 evidence, not an LLM confidence score."""
 
@@ -94,6 +182,10 @@ class VerificationReport(BaseModel):
     execution_mode: Literal["portable_local"]
     repository: str
     source_commit: str
+    repository_id: str | None = None
+    baseline_id: str | None = None
+    baseline_manifest_digest: str | None = None
+    change_source: Literal["manual_patch", "approved_baseline"] = "manual_patch"
     input_digests: InputDigests
     patch_normalized: bool = False
     protected_snapshot_before: ProtectedSnapshot

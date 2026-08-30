@@ -509,6 +509,33 @@ form {
   padding-top: 20px;
 }
 
+.mode-switch {
+  display: inline-flex;
+  justify-self: start;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.mode-switch button {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--faint);
+  cursor: pointer;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.mode-switch .mode-active {
+  color: var(--ink);
+  background: rgba(201, 255, 79, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(201, 255, 79, 0.16);
+}
+
 .field-grid {
   display: grid;
   grid-template-columns: 1fr 0.93fr;
@@ -566,6 +593,109 @@ textarea {
 .code-input {
   min-height: 156px;
   font: 11px/1.68 var(--mono);
+}
+
+.project-discovery {
+  overflow: hidden;
+  border: 1px solid rgba(211, 223, 204, 0.14);
+  border-radius: 12px;
+  background: rgba(8, 9, 8, 0.44);
+}
+
+.discovery-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px;
+}
+
+.discovery-action > div {
+  display: grid;
+  gap: 3px;
+}
+
+.discovery-action strong {
+  color: #e2e5dd;
+  font-size: 11px;
+}
+
+.discovery-action span {
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.discovery-action button,
+.approve-baseline {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid rgba(201, 255, 79, 0.25);
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  background: rgba(201, 255, 79, 0.07);
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.discovery-action button:disabled,
+.approve-baseline:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.project-error {
+  margin: 0;
+  padding: 0 13px 13px;
+  color: var(--orange);
+  font-size: 10px;
+}
+
+.project-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--line);
+  background: var(--line);
+}
+
+.project-summary > div {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  background: rgba(14, 16, 14, 0.96);
+}
+
+.project-summary span {
+  color: var(--faint);
+  font: 600 8px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.project-summary strong {
+  overflow: hidden;
+  color: #e4e7df;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-summary small,
+.project-summary code {
+  overflow: hidden;
+  color: var(--faint);
+  font: 500 8px/1.5 var(--mono);
+  text-overflow: ellipsis;
+}
+
+.approve-baseline {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin: 11px;
 }
 
 input::placeholder,
@@ -1120,6 +1250,15 @@ footer {
   .field-grid {
     grid-template-columns: 1fr;
     gap: 15px;
+  }
+
+  .discovery-action {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .project-summary {
+    grid-template-columns: 1fr;
   }
 
   .review-heading {

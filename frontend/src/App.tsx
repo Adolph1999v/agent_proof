@@ -31,6 +31,10 @@ type VerificationReport = {
   run_id: string;
   verdict: "UNSAFE" | "INCONCLUSIVE";
   summary: string;
+  repository_id: string | null;
+  baseline_id: string | null;
+  baseline_manifest_digest: string | null;
+  change_source: "manual_patch" | "approved_baseline";
   patch_normalized: boolean;
   protected_inputs_changed: string[];
   changed_files: Array<{
@@ -44,6 +48,36 @@ type VerificationReport = {
   evidence_path: string;
 };
 
+type ProjectChange = {
+  path: string;
+  status: "added" | "modified" | "deleted" | "renamed";
+  previous_path: string | null;
+};
+
+type BaselineSummary = {
+  baseline_id: string;
+  created_at: string;
+  parent_baseline_id: string | null;
+  file_count: number;
+};
+
+type ProjectInspection = {
+  repository_id: string;
+  name: string;
+  current_path: string;
+  path_changed: boolean;
+  identity_kind: "git" | "folder";
+  current_digest: string;
+  current_file_count: number;
+  baseline_count: number;
+  latest_baseline: BaselineSummary | null;
+  changes: ProjectChange[];
+  current_state_audit: {
+    status: "passed" | "failed" | "timed_out" | "not_supported";
+    summary: string;
+  } | null;
+};
+
 type LoadState =
   | { status: "loading" }
   | { status: "ready"; health: Health; rubric: Rubric }
@@ -55,8 +89,14 @@ type VerificationState =
   | { status: "ready"; report: VerificationReport }
   | { status: "error"; message: string };
 
+type ProjectState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; project: ProjectInspection }
+  | { status: "error"; message: string };
+
 const verificationSteps = [
-  ["01", "Brief", "Task, repo, and patch"],
+  ["01", "Brief", "Task and project"],
   ["02", "Challenge", "Independent checks"],
   ["03", "Evidence", "Human decision"],
 ] as const;
@@ -94,10 +134,12 @@ function readableCheckStatus(status: CommandEvidence["status"]): string {
 
 export default function App() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [verificationMode, setVerificationMode] = useState<"automatic" | "manual">("automatic");
   const [repositoryPath, setRepositoryPath] = useState("");
   const [task, setTask] = useState("");
   const [patch, setPatch] = useState("");
   const [trace, setTrace] = useState("");
+  const [projectState, setProjectState] = useState<ProjectState>({ status: "idle" });
   const [verification, setVerification] = useState<VerificationState>({ status: "idle" });
 
   useEffect(() => {
@@ -124,7 +166,16 @@ export default function App() {
       : state.status === "error"
         ? "Backend unavailable"
         : "Connecting to backend";
-  const canStartVerification = Boolean(repositoryPath.trim() && task.trim() && patch.trim());
+  const inspectedProject = projectState.status === "ready" ? projectState.project : null;
+  const canStartVerification =
+    verificationMode === "manual"
+      ? Boolean(repositoryPath.trim() && task.trim() && patch.trim())
+      : Boolean(
+          repositoryPath.trim() &&
+            task.trim() &&
+            inspectedProject?.latest_baseline &&
+            inspectedProject.changes.length,
+        );
   const report = verification.status === "ready" ? verification.report : null;
   const failureEvidence = report
     ? report.patch_check.status === "failed"
@@ -140,16 +191,27 @@ export default function App() {
 
     setVerification({ status: "running" });
     try {
-      const response = await fetch("/api/verifications", {
-        body: JSON.stringify({
-          repository_path: repositoryPath,
-          task,
-          patch,
-          trace: trace || null,
-        }),
+      const response = await fetch(
+        verificationMode === "automatic" ? "/api/verifications/automatic" : "/api/verifications",
+        {
+        body: JSON.stringify(
+          verificationMode === "automatic"
+            ? {
+                repository_path: repositoryPath,
+                task,
+                trace: trace || null,
+              }
+            : {
+                repository_path: repositoryPath,
+                task,
+                patch,
+                trace: trace || null,
+              },
+        ),
         headers: { "Content-Type": "application/json" },
         method: "POST",
-      });
+      },
+      );
       const payload = (await response.json()) as VerificationReport | { detail?: string };
       if (!response.ok) {
         throw new Error("detail" in payload ? payload.detail : "Unable to start verification.");
@@ -159,6 +221,59 @@ export default function App() {
       setVerification({
         status: "error",
         message: error instanceof Error ? error.message : "Unable to start verification.",
+      });
+    }
+  }
+
+  async function inspectProject() {
+    if (!repositoryPath.trim() || projectState.status === "loading") return;
+    setProjectState({ status: "loading" });
+    setVerification({ status: "idle" });
+    try {
+      const response = await fetch("/api/projects/inspect", {
+        body: JSON.stringify({ repository_path: repositoryPath }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json()) as ProjectInspection | { detail?: string };
+      if (!response.ok) {
+        throw new Error("detail" in payload ? payload.detail : "Unable to inspect this project.");
+      }
+      setProjectState({ status: "ready", project: payload as ProjectInspection });
+    } catch (error: unknown) {
+      setProjectState({
+        status: "error",
+        message: error instanceof Error ? error.message : "Unable to inspect this project.",
+      });
+    }
+  }
+
+  async function approveBaseline() {
+    if (!inspectedProject || !task.trim()) return;
+    setProjectState({ status: "loading" });
+    try {
+      const response = await fetch("/api/projects/baselines", {
+        body: JSON.stringify({
+          repository_path: repositoryPath,
+          expected_current_digest: inspectedProject.current_digest,
+          task,
+          evidence_run_id: report?.run_id ?? null,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json()) as
+        | { project: ProjectInspection }
+        | { detail?: string };
+      if (!response.ok || !("project" in payload)) {
+        throw new Error("detail" in payload ? payload.detail : "Unable to approve this baseline.");
+      }
+      setProjectState({ status: "ready", project: payload.project });
+      setVerification({ status: "idle" });
+    } catch (error: unknown) {
+      setProjectState({
+        status: "error",
+        message: error instanceof Error ? error.message : "Unable to approve this baseline.",
       });
     }
   }
@@ -199,7 +314,7 @@ export default function App() {
       <div className="workspace" id="workspace">
         <section className="page-heading" aria-labelledby="page-title">
           <div className="heading-copy">
-            <p className="kicker">Independent patch verification</p>
+            <p className="kicker">Independent change verification</p>
             <h1 id="page-title">
               Review an agent-generated <em>change.</em>
             </h1>
@@ -239,7 +354,7 @@ export default function App() {
                 </li>
               ))}
             </ol>
-            <p className="rail-footnote">Phase 2<br />Deterministic verifier</p>
+            <p className="rail-footnote">Phase 2.5<br />Baseline manager</p>
           </aside>
 
           <section className="review-card">
@@ -251,23 +366,52 @@ export default function App() {
             <div className="review-heading">
               <div>
                 <p className="card-kicker">Step 01</p>
-                <h2 id="review-heading">Build a verification brief</h2>
+                <h2 id="review-heading">Describe what should be verified</h2>
               </div>
               <p>
-                Give the verifier the same context as the coding agent—then let it look for what
-                was missed.
+                Point AgentProof at the project and describe the task. Change discovery happens
+                locally and automatically.
               </p>
             </div>
 
             <form onSubmit={startVerification}>
+              <div className="mode-switch" aria-label="Change input mode">
+                <button
+                  aria-pressed={verificationMode === "automatic"}
+                  className={verificationMode === "automatic" ? "mode-active" : ""}
+                  onClick={() => {
+                    setVerificationMode("automatic");
+                    setVerification({ status: "idle" });
+                  }}
+                  type="button"
+                >
+                  Automatic discovery
+                </button>
+                <button
+                  aria-pressed={verificationMode === "manual"}
+                  className={verificationMode === "manual" ? "mode-active" : ""}
+                  onClick={() => {
+                    setVerificationMode("manual");
+                    setVerification({ status: "idle" });
+                  }}
+                  type="button"
+                >
+                  Explicit patch
+                </button>
+              </div>
+
               <div className="field-grid">
                 <label htmlFor="repository">
-                  <span>Repository path</span>
+                  <span>Project path</span>
                   <input
                     id="repository"
                     name="repository"
-                    onChange={(event) => setRepositoryPath(event.target.value)}
-                    placeholder="/path/to/repository"
+                    onChange={(event) => {
+                      setRepositoryPath(event.target.value);
+                      setProjectState({ status: "idle" });
+                      setVerification({ status: "idle" });
+                    }}
+                    placeholder="/path/to/project"
                     type="text"
                     value={repositoryPath}
                   />
@@ -300,25 +444,119 @@ export default function App() {
                 />
               </label>
 
-              <label htmlFor="patch">
-                <span>Candidate patch</span>
-                <textarea
-                  className="code-input"
-                  id="patch"
-                  name="patch"
-                  onChange={(event) => setPatch(event.target.value)}
-                  placeholder="Paste a unified diff or select a local commit…"
-                  rows={8}
-                  value={patch}
-                />
-              </label>
+              {verificationMode === "automatic" ? (
+                <section className="project-discovery" aria-label="Automatic change discovery">
+                  <div className="discovery-action">
+                    <div>
+                      <strong>Automatic change discovery</strong>
+                      <span>Identify this project, audit its current state, and find changes.</span>
+                    </div>
+                    <button
+                      disabled={!repositoryPath.trim() || projectState.status === "loading"}
+                      onClick={inspectProject}
+                      type="button"
+                    >
+                      {projectState.status === "loading" ? "Inspecting…" : "Inspect project"}
+                    </button>
+                  </div>
+
+                  {projectState.status === "error" ? (
+                    <p className="project-error" role="alert">{projectState.message}</p>
+                  ) : null}
+
+                  {inspectedProject ? (
+                    <div className="project-summary">
+                      <div className="project-identity">
+                        <span>Recognized project</span>
+                        <strong>{inspectedProject.name}</strong>
+                        <code>{inspectedProject.repository_id.slice(0, 20)}…</code>
+                      </div>
+                      <div>
+                        <span>Approved history</span>
+                        <strong>
+                          {inspectedProject.latest_baseline
+                            ? `${inspectedProject.baseline_count} baseline(s)`
+                            : "First baseline needed"}
+                        </strong>
+                        <small>
+                          {inspectedProject.path_changed
+                            ? "Known project found at a new path"
+                            : `${inspectedProject.current_file_count} files inventoried`}
+                        </small>
+                      </div>
+                      <div>
+                        <span>Detected state</span>
+                        <strong>
+                          {inspectedProject.latest_baseline
+                            ? `${inspectedProject.changes.length} change(s)`
+                            : inspectedProject.current_state_audit?.status === "passed"
+                              ? "Current checks pass"
+                              : "Current state inspected"}
+                        </strong>
+                        <small>
+                          {inspectedProject.changes.length
+                            ? inspectedProject.changes
+                                .slice(0, 3)
+                                .map((change) => `${change.status}: ${change.path}`)
+                                .join(" · ")
+                            : inspectedProject.current_state_audit?.summary ??
+                              "No approved comparison exists yet"}
+                        </small>
+                      </div>
+                      {(!inspectedProject.latest_baseline ||
+                        (report?.verdict === "INCONCLUSIVE" &&
+                          report.change_source === "approved_baseline")) ? (
+                        <button
+                          className="approve-baseline"
+                          disabled={
+                            !task.trim() ||
+                            inspectedProject.current_state_audit?.status === "failed" ||
+                            inspectedProject.current_state_audit?.status === "timed_out"
+                          }
+                          onClick={approveBaseline}
+                          type="button"
+                        >
+                          {inspectedProject.latest_baseline
+                            ? "Approve as next baseline"
+                            : "Approve first baseline"}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </section>
+              ) : (
+                <label htmlFor="patch">
+                  <span>
+                    Candidate patch <em>Advanced</em>
+                  </span>
+                  <textarea
+                    className="code-input"
+                    id="patch"
+                    name="patch"
+                    onChange={(event) => setPatch(event.target.value)}
+                    placeholder="Paste a complete unified diff…"
+                    rows={8}
+                    value={patch}
+                  />
+                </label>
+              )}
 
               <div className="form-footer">
                 <button disabled={!canStartVerification || verification.status === "running"} type="submit">
-                  <span>{verification.status === "running" ? "Verifying…" : "Start verification"}</span>
+                  <span>
+                    {verification.status === "running"
+                      ? "Verifying…"
+                      : verificationMode === "automatic"
+                        ? "Verify detected changes"
+                        : "Verify explicit patch"}
+                  </span>
                   <i aria-hidden="true">↗</i>
                 </button>
-                <p>Runs only in an AgentProof-owned local clone. Nothing is sent away.</p>
+                <p>
+                  {verificationMode === "automatic"
+                    ? "No patch knowledge required. AgentProof compares the correct approved baseline."
+                    : "Advanced reproducibility mode for an exact supplied change."}
+                </p>
               </div>
             </form>
           </section>
@@ -449,7 +687,7 @@ export default function App() {
       </div>
 
       <footer>
-        <span>AgentProof · Local-first patch verification</span>
+        <span>AgentProof · Local-first change verification</span>
         <span>Reproducible evidence · Human approval</span>
       </footer>
     </main>

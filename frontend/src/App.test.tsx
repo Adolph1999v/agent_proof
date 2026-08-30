@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 
-const health = { status: "ok", service: "agentproof", version: "0.1.0" };
+const health = { status: "ok", service: "agentproof", version: "0.2.0" };
 const rubric = {
   candidates: ["Qwen3.6 27B Q6", "Qwen3-Coder 30B", "Qwen2.5-Coder 7B"],
   categories: [
@@ -21,6 +21,9 @@ const unsafeReport = {
   run_id: "run-20260829T180000Z-1234abcd",
   verdict: "UNSAFE",
   summary: "The immutable baseline test suite failed after the patch was applied.",
+  repository_id: null,
+  baseline_id: null,
+  change_source: "manual_patch",
   patch_normalized: false,
   protected_inputs_changed: [],
   changed_files: [
@@ -61,10 +64,10 @@ describe("AgentProof foundation", () => {
     expect(
       screen.getByRole("heading", { name: /review an agent-generated change/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /start verification/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /verify detected changes/i })).toBeDisabled();
 
     await waitFor(() => {
-      expect(screen.getAllByText("Backend connected · v0.1.0")).toHaveLength(2);
+      expect(screen.getAllByText("Backend connected · v0.2.0")).toHaveLength(2);
     });
 
     expect(screen.getByText("Qwen3.6 27B Q6")).toBeInTheDocument();
@@ -78,7 +81,7 @@ describe("AgentProof foundation", () => {
     render(<App />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Connection refused");
-    expect(screen.getByRole("button", { name: /start verification/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /verify detected changes/i })).toBeDisabled();
   });
 
   it("submits the user-approved inputs and renders an unsafe deterministic verdict", async () => {
@@ -92,7 +95,8 @@ describe("AgentProof foundation", () => {
     render(<App />);
 
     await screen.findByText("Qwen3.6 27B Q6");
-    fireEvent.change(screen.getByLabelText(/repository path/i), {
+    fireEvent.click(screen.getByRole("button", { name: /explicit patch/i }));
+    fireEvent.change(screen.getByLabelText(/project path/i), {
       target: { value: "/tmp/calculator" },
     });
     fireEvent.change(screen.getByLabelText(/original task or issue/i), {
@@ -102,7 +106,7 @@ describe("AgentProof foundation", () => {
       target: { value: "diff --git a/calculator.py b/calculator.py" },
     });
 
-    const submit = screen.getByRole("button", { name: /start verification/i });
+    const submit = screen.getByRole("button", { name: /verify explicit patch/i });
     expect(submit).toBeEnabled();
     fireEvent.click(submit);
 
@@ -112,6 +116,68 @@ describe("AgentProof foundation", () => {
     expect(screen.getByText("Failed")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenLastCalledWith(
       "/api/verifications",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("inspects a project and approves its first isolated baseline", async () => {
+    const inspection = {
+      repository_id: "project-1234567890abcdef1234567890abcdef",
+      name: "calculator",
+      current_path: "/tmp/calculator",
+      path_changed: false,
+      identity_kind: "git",
+      current_digest: "a".repeat(64),
+      current_file_count: 3,
+      baseline_count: 0,
+      latest_baseline: null,
+      changes: [],
+      current_state_audit: {
+        status: "passed",
+        summary: "Current pytest checks pass; no earlier baseline was required.",
+      },
+    };
+    const approved = {
+      baseline: {
+        baseline_id: "baseline-20260830T000000Z-1234abcd",
+        repository_id: inspection.repository_id,
+      },
+      project: {
+        ...inspection,
+        baseline_count: 1,
+        latest_baseline: {
+          baseline_id: "baseline-20260830T000000Z-1234abcd",
+          created_at: "2026-08-30T00:00:00Z",
+          parent_baseline_id: null,
+          file_count: 3,
+        },
+        current_state_audit: null,
+      },
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(health), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(rubric), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(inspection), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(approved), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await screen.findByText("Qwen3.6 27B Q6");
+    fireEvent.change(screen.getByLabelText(/project path/i), {
+      target: { value: "/tmp/calculator" },
+    });
+    fireEvent.change(screen.getByLabelText(/original task or issue/i), {
+      target: { value: "Accept the current state as the first baseline." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /inspect project/i }));
+
+    expect(await screen.findByText("Current checks pass")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /approve first baseline/i }));
+
+    expect(await screen.findByText("1 baseline(s)")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/projects/baselines",
       expect.objectContaining({ method: "POST" }),
     );
   });

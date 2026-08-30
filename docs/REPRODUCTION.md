@@ -48,13 +48,15 @@ Set-Location frontend
 npm run dev -- --host 127.0.0.1
 ```
 
-## Expected Phase 2 result
+## Expected Phase 2.5 result
 
 - Backend tests pass.
 - Frontend tests pass.
 - Python lint and TypeScript checks pass.
 - Vite creates `frontend/dist`.
-- The browser interface loads the model-evaluation rubric and can submit a local deterministic verification.
+- The browser interface can identify a project, run a current-state audit, approve its first baseline,
+  discover later changes automatically, and submit a local deterministic verification.
 - A supported pytest repository produces an ignored local evidence report under `artifacts/runs/`.
+- Project identities and baseline histories remain isolated under `artifacts/projects/<repository-id>/`.
 
-No model download or API key is required for Phase 2.
+No model download or API key is required for Phase 2.5.

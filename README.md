@@ -6,7 +6,8 @@ A coding agent can say that a task is complete while accidentally removing requi
 
 ## Current status
 
-Phase 2 provides a reproducible deterministic verifier on top of the Phase 1 foundation:
+Phase 2.5 provides automatic project discovery and isolated baseline histories on top of the
+deterministic verifier:
 
 - FastAPI backend with health, capability, and model-evaluation-rubric endpoints.
 - React + Vite TypeScript interface connected to the backend.
@@ -18,6 +19,11 @@ Phase 2 provides a reproducible deterministic verifier on top of the Phase 1 fou
 - Immutable snapshots of existing tests, `conftest.py`, and pytest configuration before patch application.
 - Explicit rejection of patches that apply but produce no repository change.
 - A bounded, fixed `python -m pytest -q` baseline adapter and a local JSON evidence report per run.
+- Natural-language automatic mode that does not require users to supply a Git patch.
+- Stable project identities that survive folder moves and prevent cross-project baseline reuse.
+- Immutable, content-addressed baselines with parent history and human approval.
+- Current-state audits for projects that do not yet have an older baseline.
+- Automatic added, modified, deleted, and renamed-file discovery against the latest approved state.
 
 The Phase 2 adapter intentionally supports pytest repositories only. Local model execution, invariants,
 and adversarial-test generation begin in later phases.
@@ -31,8 +37,13 @@ and adversarial-test generation begin in later phases.
 See [docs/DETERMINISTIC_VERIFIER.md](docs/DETERMINISTIC_VERIFIER.md) for the security boundary and
 reproducible evidence schema.
 
-For a reliable manual run, use the maintained case in [evaluation/cases/README.md](evaluation/cases/README.md)
-instead of reconstructing a unified diff by hand.
+The normal workflow now discovers changes automatically. For a reliable advanced-mode manual run,
+use the maintained case in [evaluation/cases/README.md](evaluation/cases/README.md) instead of
+reconstructing a unified diff by hand.
+
+See [PRODUCT_CAPABILITIES.md](PRODUCT_CAPABILITIES.md) for the concise, reviewer-facing product
+contract. It describes the complete product surface; this README and the Improvement Changelog remain
+the authority for runnable implementation status.
 
 ## Why a local web application?
 
@@ -84,9 +95,10 @@ See [docs/REPRODUCTION.md](docs/REPRODUCTION.md) for clean-environment and Windo
 
 1. **Foundation:** reproducible application shell, documentation, and quality gates.
 2. **Deterministic verifier:** patch ingestion, immutable test snapshots, diff checks, isolated execution, and evidence schemas. **Implemented for pytest repositories.**
-3. **Model bake-off:** compare Qwen3.6 27B Q6, Qwen3-Coder 30B, and Qwen2.5-Coder 7B on authentic patches.
-4. **Agent workflow:** invariant extraction, adversarial-test generation, bounded retries, and human checkpoints.
-5. **Evaluation and submission:** ten or more cases, fair baseline, measured improvement, representative trajectories, and video-ready workflow.
+3. **Baseline manager (Phase 2.5):** automatic discovery, stable project identity, current-state audit, immutable baseline approval, and isolated histories. **Implemented.**
+4. **Model bake-off:** compare Qwen3.6 27B Q6, Qwen3-Coder 30B, and Qwen2.5-Coder 7B on authentic patches.
+5. **Agent workflow:** invariant extraction, adversarial-test generation, bounded retries, and human checkpoints.
+6. **Evaluation and submission:** ten or more cases, fair baseline, measured improvement, representative trajectories, and video-ready workflow.
 
 ## Project layout
 

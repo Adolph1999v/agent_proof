@@ -433,6 +433,15 @@ class DeterministicVerifier:
             raise VerificationInputError("Verification report was not found.")
         return VerificationReport.model_validate_json(evidence_path.read_text(encoding="utf-8"))
 
+    def persist_report(self, report: VerificationReport) -> None:
+        """Persist report metadata updated by a higher-level, deterministic intake adapter."""
+        if not re.fullmatch(r"run-\d{8}T\d{6}Z-[0-9a-f]{8}", report.run_id):
+            raise VerificationInputError("Invalid verification run identifier.")
+        run_directory = self.artifacts_root / report.run_id
+        if not run_directory.is_dir():
+            raise VerificationInputError("Verification run directory was not found.")
+        self._write_report(report, run_directory)
+
     def _resolve_repository(self, requested_path: Path) -> Path:
         path = requested_path.expanduser().resolve()
         if not path.is_dir():

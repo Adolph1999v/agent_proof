@@ -5,12 +5,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from agentproof import __version__
 from agentproof.models import (
+    AutomaticVerificationRequest,
+    BaselineApprovalRequest,
+    BaselineApprovalResponse,
     CapabilitiesResponse,
     HealthResponse,
     ModelEvaluationRubric,
+    ProjectInspection,
+    ProjectInspectionRequest,
     VerificationReport,
     VerificationRequest,
 )
+from agentproof.projects import ProjectInputError, ProjectStore
 from agentproof.rubric import MODEL_CANDIDATES, MODEL_SCORE_CATEGORIES, MODEL_SCORE_TOTAL
 from agentproof.verifier import DeterministicVerifier, VerificationInputError
 
@@ -29,6 +35,7 @@ app.add_middleware(
 )
 
 verifier = DeterministicVerifier()
+project_store = ProjectStore()
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -39,8 +46,8 @@ def health() -> HealthResponse:
 @app.get("/api/capabilities", response_model=CapabilitiesResponse)
 def capabilities() -> CapabilitiesResponse:
     return CapabilitiesResponse(
-        phase=2,
-        status="deterministic_verifier",
+        phase="2.5",
+        status="baseline_manager",
         implemented=[
             "typed local API",
             "model evaluation rubric",
@@ -48,6 +55,9 @@ def capabilities() -> CapabilitiesResponse:
             "disposable Git workspaces",
             "bounded baseline execution",
             "local evidence reports",
+            "stable repository identities",
+            "isolated immutable baseline histories",
+            "automatic baseline-relative change discovery",
         ],
         planned=[
             "model bake-off",
@@ -77,6 +87,43 @@ def create_verification(request: VerificationRequest) -> VerificationReport:
     try:
         return verifier.verify(request)
     except VerificationInputError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+
+
+@app.post("/api/projects/inspect", response_model=ProjectInspection)
+def inspect_project(request: ProjectInspectionRequest) -> ProjectInspection:
+    """Identify a project, inspect baseline-relative changes, and audit its current state."""
+    try:
+        return project_store.inspect(request.repository_path, request.timeout_seconds)
+    except ProjectInputError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+
+
+@app.post(
+    "/api/projects/baselines",
+    response_model=BaselineApprovalResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def approve_project_baseline(request: BaselineApprovalRequest) -> BaselineApprovalResponse:
+    """Create an immutable baseline only after an explicit human approval request."""
+    try:
+        return project_store.approve_baseline(request)
+    except ProjectInputError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+
+
+@app.post(
+    "/api/verifications/automatic",
+    response_model=VerificationReport,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_automatic_verification(
+    request: AutomaticVerificationRequest,
+) -> VerificationReport:
+    """Discover and verify changes against the correct approved project baseline."""
+    try:
+        return project_store.verify_automatic(request, verifier)
+    except (ProjectInputError, VerificationInputError) as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
 
 

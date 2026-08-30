@@ -6,6 +6,7 @@ from pathlib import Path
 import httpx
 import pytest
 from agentproof.app import app
+from agentproof.projects import ProjectStore
 from agentproof.verifier import DeterministicVerifier
 
 
@@ -58,7 +59,7 @@ def test_health_reports_service_version() -> None:
     assert response.json() == {
         "status": "ok",
         "service": "agentproof",
-        "version": "0.1.0",
+        "version": "0.2.0",
     }
 
 
@@ -67,9 +68,10 @@ def test_capabilities_are_honest_about_phase_two_scope() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["phase"] == 2
-    assert payload["status"] == "deterministic_verifier"
+    assert payload["phase"] == "2.5"
+    assert payload["status"] == "baseline_manager"
     assert "immutable pytest input snapshots" in payload["implemented"]
+    assert "stable repository identities" in payload["implemented"]
 
 
 def test_model_rubric_is_complete_and_weighted_to_100() -> None:
@@ -121,3 +123,41 @@ index 1111111..2222222 100644
     retrieved = get(f"/api/verifications/{payload['run_id']}")
     assert retrieved.status_code == 200
     assert retrieved.json()["run_id"] == payload["run_id"]
+
+
+def test_project_api_inspects_and_approves_an_isolated_baseline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("agentproof.app")
+    monkeypatch.setattr(
+        module,
+        "project_store",
+        ProjectStore(tmp_path / "state" / "projects", tmp_path / "state" / "audits"),
+    )
+    repository = initialise_repository(tmp_path)
+
+    inspected = request(
+        "POST",
+        "/api/projects/inspect",
+        {"repository_path": str(repository)},
+    )
+
+    assert inspected.status_code == 200
+    project = inspected.json()
+    assert project["baseline_count"] == 0
+    assert project["current_state_audit"]["status"] == "passed"
+
+    approved = request(
+        "POST",
+        "/api/projects/baselines",
+        {
+            "repository_path": str(repository),
+            "expected_current_digest": project["current_digest"],
+            "task": "Approve the initial state.",
+        },
+    )
+
+    assert approved.status_code == 201
+    assert approved.json()["project"]["baseline_count"] == 1
+    assert approved.json()["baseline"]["repository_id"] == project["repository_id"]
