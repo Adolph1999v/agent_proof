@@ -207,7 +207,7 @@ class IndependentChallengeRequest(BaseModel):
     task: str = Field(min_length=1, max_length=20_000)
     model_url: str = Field(min_length=1, max_length=2048)
     model_name: str = Field(min_length=1, max_length=512)
-    model_timeout_seconds: int = Field(default=300, ge=30, le=600)
+    model_timeout_seconds: int = Field(default=120, ge=30, le=600)
     test_timeout_seconds: int = Field(default=45, ge=1, le=120)
 
     @field_validator("task", "model_url", "model_name")

@@ -1,62 +1,74 @@
-# Qwen Handoff — Task 1
+# Qwen Handoff — Phase 3 Reliability
 
 ## Objective
 
-Task 1 implemented only the read-only backend directory-browsing API required by a future frontend picker. No frontend work was performed.
+Bound local-model challenge generation so Qwen produces one concise JSON test proposal within a
+demo-safe request budget. Qwen's OpenCode session returned only repository summaries; Codex applied
+and reviewed the scoped implementation described below.
 
-## Files changed
+## Files Changed
 
-- `backend/agentproof/app.py` — added `POST /api/filesystem/directories` endpoint and `DirectoryEntry` import
-- `backend/agentproof/models.py` — added `DirectoryBrowseRequest` and `DirectoryBrowseResponse` Pydantic models
-- `backend/agentproof/directory_browser.py` — pure helper `browse_directory()` with robust error handling per child
-- `backend/tests/test_directory_browser.py` — 25 tests covering pure helper and HTTP endpoint
-- `QWEN_HANDOFF.md` — this handoff document
+- `backend/agentproof/provider.py` — reduced the completion budget and added explicit timeout errors.
+- `backend/agentproof/challenges.py` — added direct-output prompting, deterministic relevance
+  ordering, and hard task/file/patch/source/prompt limits.
+- `backend/agentproof/models.py` — reduced the default model timeout to two minutes.
+- `backend/tests/test_challenges.py` — added regression coverage for every new reliability boundary.
+- `IMPROVEMENT_CHANGELOG.md` — connected the observed empty-response failure to this bounded design.
+- `QWEN_HANDOFF.md` — replaced the stale directory-picker handoff with this report.
 
-No frontend files were changed.
+## Reliability Bounds
 
-## API contract
+- Changed Python application files: 4 maximum
+- Task text: 2,000 characters
+- Patch context: 8,000 characters total; 3,000 per file
+- Source context: 4,000 characters total; 2,000 per file
+- Changed-file index: 1,500 characters
+- Final user prompt: 18,000 characters
+- Model output: 1,536 tokens
+- Default model timeout: 120 seconds
+- Requested JSON target: approximately 900 generated tokens
 
-- **Endpoint:** `POST /api/filesystem/directories`
-- **Body:** optional JSON with nullable `path` field
-- **Default:** when `path` is `null`, omitted, or whitespace-only, defaults to the user's home directory
-- **Response fields:**
-  - `current_path` — resolved absolute path of the browsed directory
-  - `parent_path` — parent directory path, or `null` at the filesystem root
-  - `directories` — list of immediate child directories, each with `name` and `path`, sorted case-insensitively by name
-- **HTTP 400 conditions:** path cannot be resolved, path does not exist, or path is not a directory
+## Trust Boundaries Preserved
 
-## Security and portability decisions
+- The model proposes a test but never chooses the verdict.
+- Generated tests still pass strict JSON, Pydantic, and AST safety validation.
+- Baseline and candidate challenges still run separately in disposable workspaces.
+- Candidate-authored tests and configuration remain quarantined.
+- Failed model requests and responses remain trajectory evidence.
+- Model endpoints remain restricted to loopback HTTP.
+- The process still admits only one local-model request at a time.
+- Generated tests retain the existing network, subprocess, filesystem, and dynamic-execution blocks.
 
-- Read-only: no filesystem modifications during browsing.
-- Immediate child directories only; no recursive scan.
-- No file contents are returned.
-- No shell commands are used.
-- Operating-system-neutral: uses `pathlib` and direct Python filesystem APIs (`os.scandir`).
-- Inaccessible children (entries that raise `OSError` on `is_dir()` or on `resolve()`) are skipped individually without failing the request.
+## Tests Added or Updated
 
-## Tests added
+- Provider request preserves strict JSON schema, temperature 0, seed 42, and uses 1,536 tokens.
+- Challenge instructions start with `/no_think`.
+- Tasks and final prompts are hard-bounded.
+- At most four deterministic, task-relevant Python application files enter model context.
+- Test, protected, and non-Python inputs remain excluded.
+- The default request timeout is 120 seconds.
+- Timeout errors name the configured deadline and release the single-model lock.
+- Existing verdict, safety, task-binding, and failed-trajectory tests remain passing.
 
-All tests live in `backend/tests/test_directory_browser.py` (25 total):
+## Commands Run
 
-- **Pure helper tests (13):** default-to-home for `None`/empty/whitespace paths, immediate child listing, case-insensitive sorting, file exclusion, path normalization, parent path correctness, root-parent-is-null, nonexistent path raises, file path raises, inaccessible `is_dir()` child skipped, no filesystem modification, child `Path.resolve()` failure skipped.
-- **HTTP endpoint tests (12):** null path returns home, omitted path returns home, children sorted in response, files excluded, correct field names, nonexistent path returns 400, file path returns 400, inaccessible child skipped via endpoint, no filesystem modification via endpoint, parent path in response, root parent path is null.
+| Command | Exit status | Result |
+| --- | ---: | --- |
+| `.venv/bin/python -m pytest backend/tests/test_challenges.py backend/tests/test_phase3_api.py` | 0 | 13 passed |
+| `make test-backend` | 0 | 65 passed |
+| `make lint-backend` | 0 | Ruff passed |
+| `make check` | 0 | 65 backend tests, 13 frontend tests, Python/TypeScript lint, and production build passed |
+| `git diff --check` | 0 | No whitespace errors |
+| `git status --short` | 0 | Six intended files modified before commit |
 
-## Commands run and exact results
+## Remaining Manual Test
 
-| Command | Result |
-|---------|--------|
-| `.venv/bin/python -m pytest backend/tests/test_directory_browser.py` | 25 passed |
-| `make test-backend` | 61 passed |
-| `make lint-backend` | passed |
-| `git diff --check` | passed (no whitespace errors) |
+Run one Qwen3.6 27B Q6 challenge through LM Studio and record wall-clock time, prompt tokens,
+completion tokens, response validity, baseline/candidate execution, and final deterministic verdict.
+Do not claim a live speed improvement until this replay succeeds.
 
-## Known limitations
+## Known Limitations
 
-- There is currently no frontend folder-picker interface.
-- Users cannot access this endpoint through mouse navigation yet.
-- Task 2 must connect a frontend modal to the backend API.
-
-## Items requiring reviewer attention
-
-- The new filesystem-browsing security boundary: the endpoint is read-only by design, but it exposes directory structure information. Review whether additional path restrictions (e.g., confinement to a user-approved project root) are required before frontend integration.
-- The inaccessible-child tests (`test_inaccessible_child_skipped_without_failing`, `test_child_resolve_failure_skipped_without_failing`, and their HTTP counterparts) use monkey-patched `os.DirEntry.is_dir` and `Path.resolve` to simulate permission errors. These are accurate for the error-handling logic but do not exercise real filesystem permission denial.
+- Phase 3 currently challenges changed Python application files only.
+- The relevance selector uses deterministic task-to-path matching rather than repository-wide search.
+- Large multi-language repositories and richer dependency-aware retrieval remain future work.

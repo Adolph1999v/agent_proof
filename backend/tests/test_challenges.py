@@ -2,8 +2,16 @@ import json
 import subprocess
 from pathlib import Path
 
+import httpx
 import pytest
-from agentproof.challenges import ChallengeError, IndependentChallengeRunner
+from agentproof.challenges import (
+    MAX_CHANGED_APPLICATION_FILES,
+    MAX_TASK_CHARS,
+    MAX_USER_PROMPT_CHARS,
+    SYSTEM_PROMPT,
+    ChallengeError,
+    IndependentChallengeRunner,
+)
 from agentproof.models import ChangedFile, IndependentChallengeRequest, VerificationRequest
 from agentproof.provider import ModelCompletion, OpenAICompatibleProvider, ProviderError
 from agentproof.verifier import DeterministicVerifier
@@ -175,9 +183,60 @@ def test_prompt_context_is_bounded_and_prioritizes_python_application_files(
     )
 
     assert [change.path for change in application_changes] == ["large.py"]
-    assert len(prompt) < 29_000
+    assert len(prompt) <= MAX_USER_PROMPT_CHARS
     assert "test.py" not in prompt
     assert "README.md" not in prompt
+
+
+def test_prompt_truncates_task_and_includes_at_most_four_relevant_files(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    changes = []
+    for index in range(6):
+        name = "payment.py" if index == 0 else f"module_{index}.py"
+        (workspace / name).write_text(f"VALUE = {index}\n", encoding="utf-8")
+        changes.append(
+            ChangedFile(path=name, added_lines=index + 1, deleted_lines=0, protected=False)
+        )
+
+    application_changes = IndependentChallengeRunner._application_changes(
+        changes,
+        "Update payment behavior.",
+    )
+    prompt = IndependentChallengeRunner._user_prompt(
+        application_changes,
+        workspace,
+        "x" * (MAX_TASK_CHARS + 500),
+        "patch",
+    )
+
+    assert len(application_changes) == MAX_CHANGED_APPLICATION_FILES
+    assert application_changes[0].path == "payment.py"
+    assert prompt.count("### ") == MAX_CHANGED_APPLICATION_FILES
+    assert "x" * MAX_TASK_CHARS in prompt
+    assert "x" * (MAX_TASK_CHARS + 1) not in prompt
+    assert len(prompt) <= MAX_USER_PROMPT_CHARS
+
+
+def test_application_file_selection_is_deterministic_and_excludes_untrusted_inputs() -> None:
+    changes = [
+        ChangedFile(path="generic.py", added_lines=100, deleted_lines=0, protected=False),
+        ChangedFile(path="payment_service.py", added_lines=1, deleted_lines=0, protected=False),
+        ChangedFile(path="tests/test_payment.py", added_lines=50, deleted_lines=0, protected=False),
+        ChangedFile(path="protected.py", added_lines=50, deleted_lines=0, protected=True),
+        ChangedFile(path="payment.md", added_lines=50, deleted_lines=0, protected=False),
+    ]
+
+    first = IndependentChallengeRunner._application_changes(changes, "Fix payment behavior")
+    second = IndependentChallengeRunner._application_changes(
+        list(reversed(changes)),
+        "Fix payment behavior",
+    )
+
+    assert [change.path for change in first] == ["payment_service.py", "generic.py"]
+    assert [change.path for change in second] == ["payment_service.py", "generic.py"]
 
 
 def test_preservation_challenge_marks_a_regression_unsafe(tmp_path: Path) -> None:
@@ -290,9 +349,77 @@ def test_model_provider_requests_strict_json_schema_and_records_usage(
     assert completion.finish_reason == "stop"
     assert completion.reasoning_content == "brief reasoning"
     request_json = captured["request"]["json"]
+    assert SYSTEM_PROMPT.startswith("/no_think")
     assert request_json["response_format"]["type"] == "json_schema"
-    assert request_json["max_tokens"] == 3072
+    assert request_json["temperature"] == 0
+    assert request_json["seed"] == 42
+    assert request_json["max_tokens"] == 1536
     assert captured["options"]["trust_env"] is False
+
+
+def test_model_provider_reports_timeout_and_releases_single_request_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {
+                "choices": [
+                    {
+                        "message": {"content": '{"behavior_mode":"change"}'},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {},
+            }
+
+    class FakeClient:
+        def __init__(self, **options: object) -> None:
+            return None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *arguments: object) -> None:
+            return None
+
+        def post(self, endpoint: str, **options: object) -> FakeResponse:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise httpx.ReadTimeout(
+                    "model timed out",
+                    request=httpx.Request("POST", endpoint),
+                )
+            return FakeResponse()
+
+    monkeypatch.setattr("agentproof.provider.httpx.Client", FakeClient)
+    provider = OpenAICompatibleProvider(
+        "http://127.0.0.1:1234/v1",
+        "local-model",
+        timeout_seconds=37,
+    )
+
+    with pytest.raises(ProviderError, match="within 37 seconds"):
+        provider.complete("system", "user")
+
+    completion = provider.complete("system", "user")
+    assert completion.finish_reason == "stop"
+
+
+def test_challenge_request_defaults_to_two_minute_model_timeout() -> None:
+    request = IndependentChallengeRequest(
+        run_id="run-20260830T100000Z-1234abcd",
+        task="Verify one behavior.",
+        model_url="http://127.0.0.1:1234/v1",
+        model_name="local-model",
+    )
+
+    assert request.model_timeout_seconds == 120
 
 
 def test_empty_length_limited_response_is_preserved_as_failure_evidence(

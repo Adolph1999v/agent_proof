@@ -6,6 +6,7 @@ import ast
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -26,11 +27,14 @@ from agentproof.models import (
 from agentproof.provider import ChallengeProvider, OpenAICompatibleProvider, ProviderError
 from agentproof.verifier import DeterministicVerifier, VerificationInputError
 
-MAX_PROMPT_PATCH_CHARS = 16_000
-MAX_PATCH_FILE_CHARS = 6_000
-MAX_SOURCE_CONTEXT_CHARS = 8_000
-MAX_SOURCE_FILE_CHARS = 3_000
-MAX_FILE_INDEX_CHARS = 4_000
+MAX_TASK_CHARS = 2_000
+MAX_CHANGED_APPLICATION_FILES = 4
+MAX_PROMPT_PATCH_CHARS = 8_000
+MAX_PATCH_FILE_CHARS = 3_000
+MAX_SOURCE_CONTEXT_CHARS = 4_000
+MAX_SOURCE_FILE_CHARS = 2_000
+MAX_FILE_INDEX_CHARS = 1_500
+MAX_USER_PROMPT_CHARS = 18_000
 MAX_TEST_CHARS = 20_000
 CHALLENGE_TEST_NAME = "agentproof_challenge_test.py"
 TEST_DIRECTORY_NAMES = {"test", "tests", "__tests__", "spec", "specs"}
@@ -93,7 +97,9 @@ BLOCKED_ATTRIBUTE_CALLS = {
     "xfail",
 }
 
-SYSTEM_PROMPT = """You are AgentProof's independent challenge-test author.
+SYSTEM_PROMPT = """/no_think
+You are AgentProof's independent challenge-test author. Return the required JSON immediately without
+analysis, explanation, hidden planning, or Markdown.
 
 You receive a user task and a candidate change. Create one focused pytest module that checks a
 meaningful requirement the candidate's existing tests may have missed.
@@ -105,7 +111,7 @@ Rules:
   filesystem access, monkeypatching, sleeps, randomness, skip, or xfail.
 - The test must import real application code and contain a non-trivial assertion.
 - Select one concrete behavior quickly. Do not exhaustively audit the repository or repeat analysis.
-- Finish the JSON response within 1,200 generated tokens.
+- Finish the complete JSON response within 900 generated tokens.
 - Use behavior_mode "change" when the test should fail on the approved baseline and pass on the
   candidate. Use "preserve" when the same required behavior should pass on both.
 - Return exactly this shape:
@@ -246,7 +252,10 @@ class IndependentChallengeRunner:
         if not source_workspace.is_dir() or not patch_path.is_file():
             raise ChallengeError("The source verification workspace or candidate patch is missing.")
 
-        application_changes = self._application_changes(source_report.changed_files)
+        application_changes = self._application_changes(
+            source_report.changed_files,
+            request.task,
+        )
         if not application_changes:
             raise ChallengeError(
                 "The current challenge adapter requires at least one changed Python "
@@ -392,6 +401,7 @@ class IndependentChallengeRunner:
 
     @staticmethod
     def _user_prompt(changed_files, workspace: Path, task: str, patch: str) -> str:
+        changed_files = list(changed_files)[:MAX_CHANGED_APPLICATION_FILES]
         sections: list[str] = []
         used = 0
         for changed in changed_files:
@@ -411,8 +421,8 @@ class IndependentChallengeRunner:
             f"- {changed.path} (+{changed.added_lines}/-{changed.deleted_lines})"
             for changed in changed_files
         )[:MAX_FILE_INDEX_CHARS]
-        return f"""## Original user task
-{task}
+        prompt = f"""## Original user task
+{task[:MAX_TASK_CHARS]}
 
 ## Changed Python application files
 {file_index}
@@ -426,28 +436,42 @@ class IndependentChallengeRunner:
 Write one independent pytest challenge for the most important unproven behavior. Return only the
 required JSON object.
 """
+        return prompt[:MAX_USER_PROMPT_CHARS]
 
     @staticmethod
-    def _application_changes(changed_files):
+    def _application_changes(changed_files, task: str = ""):
+        task_terms = {
+            term
+            for term in re.findall(r"[a-z0-9]+", task[:MAX_TASK_CHARS].casefold())
+            if len(term) >= 3
+        }
+
+        def relevance(changed) -> int:
+            normalized_path = changed.path.casefold()
+            return sum(term in normalized_path for term in task_terms)
+
+        eligible = (
+            changed
+            for changed in changed_files
+            if not changed.protected
+            and not _is_test_path(Path(changed.path))
+            and Path(changed.path).suffix.lower() == ".py"
+        )
         return sorted(
-            (
-                changed
-                for changed in changed_files
-                if not changed.protected
-                and not _is_test_path(Path(changed.path))
-                and Path(changed.path).suffix.lower() == ".py"
-            ),
+            eligible,
             key=lambda changed: (
+                -relevance(changed),
                 -(changed.added_lines + changed.deleted_lines),
+                changed.path.casefold(),
                 changed.path,
             ),
-        )
+        )[:MAX_CHANGED_APPLICATION_FILES]
 
     @staticmethod
     def _application_patch(workspace: Path, changed_files) -> str:
         sections: list[str] = []
         used = 0
-        for changed in changed_files:
+        for changed in list(changed_files)[:MAX_CHANGED_APPLICATION_FILES]:
             path = Path(changed.path)
             completed = subprocess.run(
                 [

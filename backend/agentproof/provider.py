@@ -69,7 +69,7 @@ class OpenAICompatibleProvider:
         *,
         api_key: str | None = None,
         timeout_seconds: int = 300,
-        max_tokens: int = 3072,
+        max_tokens: int = 1536,
     ) -> None:
         parsed = urlparse(base_url)
         if (
@@ -146,13 +146,18 @@ class OpenAICompatibleProvider:
                 f"The local model rejected the request with HTTP {error.response.status_code}: "
                 f"{detail or 'no error detail returned'}"
             ) from error
+        except httpx.TimeoutException as error:
+            raise ProviderError(
+                "The local model did not return a challenge within "
+                f"{self.timeout_seconds} seconds."
+            ) from error
         except (
             AttributeError,
-            httpx.RequestError,
             KeyError,
             IndexError,
             TypeError,
             ValueError,
+            httpx.RequestError,
         ) as error:
             raise ProviderError(
                 "The local model did not complete the challenge request. Confirm that the "
