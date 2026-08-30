@@ -19,6 +19,7 @@ Phase 3 adds local-model independent challenges to the automatic baseline workfl
 - Explicit rejection of patches that apply but produce no repository change.
 - A bounded, fixed `python -m pytest -q` baseline adapter and a local JSON evidence report per run.
 - Natural-language automatic mode that does not require users to supply a Git patch.
+- A click-driven local directory picker with manual path entry retained as a fallback.
 - Stable project identities that survive folder moves and prevent cross-project baseline reuse.
 - Immutable, content-addressed baselines with parent history and human approval.
 - Current-state audits for projects that do not yet have an older baseline.

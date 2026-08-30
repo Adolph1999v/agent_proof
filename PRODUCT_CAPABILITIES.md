@@ -35,6 +35,7 @@ Changelog links implemented behavior to evidence.
 
 ## Change discovery
 
+- Select a local project through a mouse-driven directory browser or enter its path manually.
 - Detect modified, added, deleted, renamed, and binary files.
 - Discover staged, unstaged, committed, and snapshot-relative changes.
 - Compare non-Git projects using AgentProof-owned before-and-after snapshots.

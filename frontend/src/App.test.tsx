@@ -84,6 +84,33 @@ describe("AgentProof foundation", () => {
     expect(screen.getByRole("button", { name: /verify detected changes/i })).toBeDisabled();
   });
 
+  it("fills the project path through the local folder picker", async () => {
+    const directoryListing = {
+      current_path: "/Users/reviewer/agent-proof-demo",
+      parent_path: "/Users/reviewer",
+      directories: [],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(health), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(rubric), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(directoryListing), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await screen.findByText("Qwen3.6 27B Q6");
+    fireEvent.click(screen.getByRole("button", { name: "Browse" }));
+    expect(
+      await screen.findByRole("heading", { name: "Choose a project folder" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use this folder" }));
+
+    expect(screen.getByLabelText("Project path")).toHaveValue(
+      "/Users/reviewer/agent-proof-demo",
+    );
+    expect(screen.getByRole("button", { name: "Inspect project" })).toBeEnabled();
+  });
+
   it("submits the user-approved inputs and renders an unsafe deterministic verdict", async () => {
     const fetchMock = vi
       .fn()

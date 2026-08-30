@@ -5,11 +5,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from agentproof import __version__
 from agentproof.challenges import ChallengeError, IndependentChallengeRunner
+from agentproof.directory_browser import DirectoryBrowseError, browse_directory
 from agentproof.models import (
     AutomaticVerificationRequest,
     BaselineApprovalRequest,
     BaselineApprovalResponse,
     CapabilitiesResponse,
+    DirectoryBrowseRequest,
+    DirectoryBrowseResponse,
+    DirectoryEntry,
     HealthResponse,
     IndependentChallengeReport,
     IndependentChallengeRequest,
@@ -173,3 +177,22 @@ def create_independent_challenge(
         return challenge_runner.run(request)
     except ChallengeError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+
+
+@app.post("/api/filesystem/directories", response_model=DirectoryBrowseResponse)
+def browse_directories(request: DirectoryBrowseRequest) -> DirectoryBrowseResponse:
+    """Return immediate child directories for the requested path (read-only)."""
+    try:
+        current_path, parent_path, children = browse_directory(request.path)
+    except DirectoryBrowseError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)
+        ) from error
+
+    return DirectoryBrowseResponse(
+        current_path=current_path,
+        parent_path=parent_path,
+        directories=[
+            DirectoryEntry(name=name, path=abspath) for name, abspath in children
+        ],
+    )

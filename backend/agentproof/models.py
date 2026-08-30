@@ -249,3 +249,24 @@ class IndependentChallengeReport(BaseModel):
     candidate_execution: CommandEvidence
     evidence_path: str
     trajectory_path: str
+
+
+class DirectoryBrowseRequest(BaseModel):
+    """Request body for browsing a directory."""
+
+    path: str | None = Field(default=None, max_length=4096)
+
+
+class DirectoryEntry(BaseModel):
+    """A single child directory entry."""
+
+    name: str
+    path: str
+
+
+class DirectoryBrowseResponse(BaseModel):
+    """Response with the current directory listing."""
+
+    current_path: str
+    parent_path: str | None
+    directories: list[DirectoryEntry]

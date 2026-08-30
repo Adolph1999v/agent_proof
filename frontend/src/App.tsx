@@ -1,4 +1,6 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
+
+import DirectoryPicker from "./DirectoryPicker";
 
 type Health = {
   status: "ok";
@@ -173,6 +175,7 @@ export default function App() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [verificationMode, setVerificationMode] = useState<"automatic" | "manual">("automatic");
   const [repositoryPath, setRepositoryPath] = useState("");
+  const [directoryPickerOpen, setDirectoryPickerOpen] = useState(false);
   const [task, setTask] = useState("");
   const [patch, setPatch] = useState("");
   const [trace, setTrace] = useState("");
@@ -331,6 +334,22 @@ export default function App() {
     }
   }
 
+  const updateRepositoryPath = useCallback((path: string) => {
+    setRepositoryPath(path);
+    setProjectState({ status: "idle" });
+    setVerification({ status: "idle" });
+    setChallenge({ status: "idle" });
+  }, []);
+
+  const closeDirectoryPicker = useCallback(() => setDirectoryPickerOpen(false), []);
+  const selectDirectory = useCallback(
+    (path: string) => {
+      updateRepositoryPath(path);
+      setDirectoryPickerOpen(false);
+    },
+    [updateRepositoryPath],
+  );
+
   async function inspectProject() {
     if (!repositoryPath.trim() || projectState.status === "loading") return;
     setProjectState({ status: "loading" });
@@ -423,6 +442,12 @@ export default function App() {
   return (
     <main className="app-shell">
       <div className="ambient-field" aria-hidden="true" />
+      <DirectoryPicker
+        initialPath={repositoryPath}
+        onCancel={closeDirectoryPicker}
+        onSelect={selectDirectory}
+        open={directoryPickerOpen}
+      />
 
       <header className="topbar">
         <a className="brand" href="#workspace" aria-label="AgentProof workspace">
@@ -543,21 +568,26 @@ export default function App() {
               </div>
 
               <div className="field-grid">
-                <label htmlFor="repository">
-                  <span>Project path</span>
-                  <input
-                    id="repository"
-                    name="repository"
-                    onChange={(event) => {
-                      setRepositoryPath(event.target.value);
-                      setProjectState({ status: "idle" });
-                      setVerification({ status: "idle" });
-                    }}
-                    placeholder="/path/to/project"
-                    type="text"
-                    value={repositoryPath}
-                  />
-                </label>
+                <div className="path-field">
+                  <label htmlFor="repository">Project path</label>
+                  <div className="path-input-row">
+                    <input
+                      id="repository"
+                      name="repository"
+                      onChange={(event) => updateRepositoryPath(event.target.value)}
+                      placeholder="/path/to/project"
+                      type="text"
+                      value={repositoryPath}
+                    />
+                    <button
+                      className="browse-folders"
+                      onClick={() => setDirectoryPickerOpen(true)}
+                      type="button"
+                    >
+                      Browse
+                    </button>
+                  </div>
+                </div>
 
                 <label htmlFor="trace">
                   <span>
