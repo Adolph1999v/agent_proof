@@ -19,7 +19,10 @@ const deterministicReport = {
   baseline_manifest_digest: null,
   change_source: "manual_patch",
   patch_normalized: false,
-  protected_inputs_changed: [],
+  protected_inputs_changed: [
+    "backend/tests/test_challenges.py",
+    "backend/tests/test_phase3_api.py",
+  ],
   changed_files: [{ path: "service.py", added_lines: 1, deleted_lines: 1, protected: false }],
   patch_check: { status: "passed", command: [], exit_code: 0, duration_ms: 1, output_preview: "" },
   test_execution: { status: "passed", command: [], exit_code: 0, duration_ms: 10, output_preview: "1 passed" },
@@ -80,6 +83,11 @@ describe("independent local-model challenge", () => {
     fireEvent.click(screen.getByRole("button", { name: /verify explicit patch/i }));
 
     expect(await screen.findByRole("button", { name: /run local challenge/i })).toBeEnabled();
+    expect(
+      screen.getByText(
+        "2 candidate test/config change(s) quarantined; unchanged tests retained",
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /run local challenge/i }));
 
     expect(

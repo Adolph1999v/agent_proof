@@ -35,7 +35,9 @@ frameworks and stronger operating-system/container isolation remain future work.
 
 ### Honest verdicts
 
-- `UNSAFE`: the patch does not apply, changes protected baseline inputs, or causes the baseline suite to fail.
+- `UNSAFE`: the patch does not apply, produces no application change, or causes an unchanged frozen
+  baseline test to fail. Candidate-authored test and test-configuration changes are quarantined rather
+  than trusted.
 - `INCONCLUSIVE`: the baseline passes, times out, or cannot be run. Passing existing tests alone is not proof
   that the task was solved, so Phase 2 does not emit `VERIFIED`.
 - `VERIFIED`: the preserved baseline suite passes and an accepted independent challenge produces the

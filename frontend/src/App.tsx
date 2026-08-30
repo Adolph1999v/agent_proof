@@ -281,7 +281,7 @@ export default function App() {
             : challenge.status === "error"
               ? "The challenge did not complete; the detected changes remain unapproved."
               : report?.test_execution.status === "passed"
-                ? "Existing tests passed; an independent challenge is still required."
+                ? "Unchanged approved tests passed; an independent challenge is still required."
                 : inspectedProject.changes
                     .slice(0, 3)
                     .map((change) => `${change.status}: ${change.path}`)
@@ -724,6 +724,10 @@ export default function App() {
                     />
                   </label>
                 </div>
+                <p className="model-context-note">
+                  Qwen3.6 27B on a 48GB Mac: load a 48K context window. AgentProof still bounds
+                  repository input so output and system memory retain headroom.
+                </p>
 
                 {challenge.status === "error" ? (
                   <p className="challenge-error" role="alert">{challenge.message}</p>
@@ -842,12 +846,15 @@ export default function App() {
                         : readableCheckStatus(report.patch_check.status),
                     ],
                     [
-                      "Protected inputs",
+                      "Test isolation",
                       report.protected_inputs_changed.length
-                        ? `${report.protected_inputs_changed.length} protected file(s) changed`
-                        : "No baseline tests or pytest configuration changed",
+                        ? `${report.protected_inputs_changed.length} candidate test/config change(s) quarantined; unchanged tests retained`
+                        : "Frozen baseline tests remained unchanged",
                     ],
-                    ["Baseline execution", readableCheckStatus(report.test_execution.status)],
+                    [
+                      "Unchanged baseline tests",
+                      readableCheckStatus(report.test_execution.status),
+                    ],
                   ]
                 : proofContract
               ).map(([title, body]) => (

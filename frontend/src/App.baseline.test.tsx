@@ -131,7 +131,9 @@ describe("approved baseline comparison", () => {
 
     expect(await screen.findByText("2 change(s) · tests passed")).toBeInTheDocument();
     expect(
-      screen.getByText("Existing tests passed; an independent challenge is still required."),
+      screen.getByText(
+        "Unchanged approved tests passed; an independent challenge is still required.",
+      ),
     ).toBeInTheDocument();
   });
 });

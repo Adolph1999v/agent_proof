@@ -29,6 +29,11 @@ def sample_repository(tmp_path: Path) -> Path:
         "from calculator import add\n\n\ndef test_add() -> None:\n    assert add(2, 3) == 5\n",
         encoding="utf-8",
     )
+    (repository / "tests" / "test_negative.py").write_text(
+        "from calculator import add\n\n\ndef test_balanced_values() -> None:\n"
+        "    assert add(-1, 1) == 0\n",
+        encoding="utf-8",
+    )
     run_git(repository, "init", "--quiet")
     run_git(repository, "add", ".")
     run_git(
@@ -106,7 +111,9 @@ index 1111111..2222222 100644
     run_directory = tmp_path / "artifacts" / "runs" / report.run_id
     assert (run_directory / "candidate.patch").read_text(encoding="utf-8") == patch
     application_patch = run_directory / "candidate.application.patch"
-    assert application_patch.read_text(encoding="utf-8") == f"{patch}\n"
+    application_patch_text = application_patch.read_text(encoding="utf-8")
+    assert application_patch_text.endswith("\n")
+    assert '+"""Small calculator helpers."""' in application_patch_text
 
 
 def test_patch_that_produces_no_repository_change_is_unsafe(
@@ -131,11 +138,19 @@ def test_patch_that_produces_no_repository_change_is_unsafe(
     assert report.changed_files == []
 
 
-def test_patch_that_changes_an_existing_test_is_unsafe(
+def test_changed_candidate_test_is_quarantined_while_frozen_test_still_runs(
     sample_repository: Path,
     tmp_path: Path,
 ) -> None:
-    patch = """diff --git a/tests/test_calculator.py b/tests/test_calculator.py
+    patch = """diff --git a/calculator.py b/calculator.py
+index 1111111..2222222 100644
+--- a/calculator.py
++++ b/calculator.py
+@@ -1,2 +1,3 @@
++# Calculator behavior remains unchanged.
+ def add(left: int, right: int) -> int:
+     return left + right
+diff --git a/tests/test_calculator.py b/tests/test_calculator.py
 index 1111111..2222222 100644
 --- a/tests/test_calculator.py
 +++ b/tests/test_calculator.py
@@ -150,9 +165,77 @@ index 1111111..2222222 100644
 
     report = verifier.verify(request_for(sample_repository, patch))
 
+    assert report.verdict == "INCONCLUSIVE"
+    assert report.protected_inputs_changed == ["tests/test_calculator.py"]
+    assert report.test_execution.status == "passed"
+    assert "quarantined" in report.summary
+    run_directory = tmp_path / "artifacts" / "runs" / report.run_id
+    application_patch = (run_directory / "candidate.application.patch").read_text(
+        encoding="utf-8"
+    )
+    assert "calculator.py" in application_patch
+    assert "tests/test_calculator.py" not in application_patch
+
+
+def test_weakened_candidate_test_cannot_hide_an_application_regression(
+    sample_repository: Path,
+    tmp_path: Path,
+) -> None:
+    patch = """diff --git a/calculator.py b/calculator.py
+index 1111111..2222222 100644
+--- a/calculator.py
++++ b/calculator.py
+@@ -1,2 +1,2 @@
+ def add(left: int, right: int) -> int:
+-    return left + right
++    return left - right
+diff --git a/tests/test_calculator.py b/tests/test_calculator.py
+index 1111111..2222222 100644
+--- a/tests/test_calculator.py
++++ b/tests/test_calculator.py
+@@ -2,5 +2,5 @@ from calculator import add
+
+
+ def test_add() -> None:
+-    assert add(2, 3) == 5
++    assert add(2, 3) == -1
+"""
+    verifier = DeterministicVerifier(artifacts_root=tmp_path / "artifacts" / "runs")
+
+    report = verifier.verify(request_for(sample_repository, patch))
+
     assert report.verdict == "UNSAFE"
     assert report.protected_inputs_changed == ["tests/test_calculator.py"]
+    assert report.test_execution.status == "failed"
+
+
+def test_test_only_patch_is_quarantined_without_claiming_application_verification(
+    sample_repository: Path,
+    tmp_path: Path,
+) -> None:
+    patch = """diff --git a/tests/test_calculator.py b/tests/test_calculator.py
+index 1111111..2222222 100644
+--- a/tests/test_calculator.py
++++ b/tests/test_calculator.py
+@@ -2,5 +2,6 @@ from calculator import add
+
+
+ def test_add() -> None:
+     assert add(2, 3) == 5
++    assert add(-2, 2) == 0
+"""
+    verifier = DeterministicVerifier(artifacts_root=tmp_path / "artifacts" / "runs")
+
+    report = verifier.verify(request_for(sample_repository, patch))
+
+    assert report.verdict == "INCONCLUSIVE"
+    assert report.protected_inputs_changed == ["tests/test_calculator.py"]
     assert report.test_execution.status == "not_run"
+    assert "no application change remained" in report.summary
+    application_patch = (
+        tmp_path / "artifacts" / "runs" / report.run_id / "candidate.application.patch"
+    )
+    assert application_patch.read_text(encoding="utf-8") == ""
 
 
 def test_non_applicable_patch_is_unsafe(sample_repository: Path, tmp_path: Path) -> None:

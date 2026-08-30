@@ -109,6 +109,8 @@ new file mode 100644
     )
     assert report.verdict == "INCONCLUSIVE"
     assert "test_candidate_added.py" in {changed.path for changed in report.changed_files}
+    assert "test_candidate_added.py" in report.protected_inputs_changed
+    assert report.test_execution.status == "passed"
     return verifier, report.run_id
 
 

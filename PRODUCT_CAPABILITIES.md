@@ -46,7 +46,8 @@ Changelog links implemented behavior to evidence.
 
 - Apply candidate changes only inside a disposable workspace.
 - Preserve existing tests and test configuration as protected baseline evidence.
-- Reject changes that weaken, delete, or secretly reconfigure protected checks.
+- Quarantine changes that weaken, delete, add, or reconfigure candidate-controlled checks; execute the
+  application-only patch against the untouched approved versions instead.
 - Run bounded baseline tests, builds, linters, and supported static checks.
 - Extract requirements and invariants from the task, repository, and optional agent trace.
 - Generate independent challenge tests outside the candidate change's control.

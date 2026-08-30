@@ -34,6 +34,8 @@ MAX_OUTPUT_CHARS = 12_000
 GIT_TIMEOUT_SECONDS = 30
 PYTEST_COMMAND = [sys.executable, "-m", "pytest", "-q"]
 PROTECTED_CONFIG_NAMES = {"pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml"}
+TEST_DIRECTORY_NAMES = {"test", "tests", "__tests__", "spec", "specs"}
+TEST_FILE_NAMES = {"test.py", "tests.py", "conftest.py"}
 
 
 class VerificationInputError(ValueError):
@@ -89,16 +91,28 @@ def _is_protected_path(relative_path: Path) -> bool:
     name = relative_path.name.lower()
     parts = {part.lower() for part in relative_path.parts}
 
-    if name == "conftest.py" or name in PROTECTED_CONFIG_NAMES:
+    if name in TEST_FILE_NAMES or name in PROTECTED_CONFIG_NAMES:
         return True
-    if {"test", "tests", "__tests__"} & parts:
+    if TEST_DIRECTORY_NAMES & parts:
         return True
     return (
         name.startswith("test_")
+        or name.startswith("tests_")
         or name.endswith("_test.py")
+        or name.endswith("_tests.py")
         or ".test." in name
         or ".spec." in name
         or normalized.startswith("tests/")
+    )
+
+
+def _is_pytest_target(relative_path: Path) -> bool:
+    """Return whether pytest would normally collect this path as a test module."""
+    name = relative_path.name.lower()
+    return relative_path.suffix.lower() == ".py" and (
+        name == "test.py"
+        or name.startswith("test_")
+        or name.endswith("_test.py")
     )
 
 
@@ -126,7 +140,7 @@ def _snapshot_protected_inputs(workspace: Path) -> tuple[ProtectedSnapshot, dict
 
 
 def _changed_protected_inputs(before: dict[str, str], after: dict[str, str]) -> list[str]:
-    """Block changed baseline inputs and newly introduced pytest configuration, not new tests."""
+    """Report changed baseline inputs and newly introduced test configuration."""
     changed = {path for path, digest in before.items() if after.get(path) != digest}
     changed.update(
         path
@@ -281,6 +295,10 @@ class DeterministicVerifier:
         snapshot_after, after_hashes = _snapshot_protected_inputs(workspace)
         protected_inputs_changed = _changed_protected_inputs(before_hashes, after_hashes)
         changed_files = self._changed_files(workspace, before_hashes)
+        protected_inputs_changed = sorted(
+            set(protected_inputs_changed)
+            | {changed.path for changed in changed_files if changed.protected}
+        )
 
         workspace_status = self._run(
             [
@@ -343,7 +361,10 @@ class DeterministicVerifier:
                 run_directory,
             )
 
-        if protected_inputs_changed:
+        application_patch = self._application_patch(workspace, changed_files)
+        application_patch_path = run_directory / "candidate.application.patch"
+        application_patch_path.write_text(application_patch, encoding="utf-8")
+        if not application_patch.strip():
             return self._write_report(
                 self._report(
                     run_id=run_id,
@@ -353,20 +374,93 @@ class DeterministicVerifier:
                     digests=digests,
                     snapshot_before=snapshot_before,
                     snapshot_after=snapshot_after,
-                    verdict="UNSAFE",
-                    summary="The patch modifies protected baseline tests or test configuration.",
+                    verdict="INCONCLUSIVE",
+                    summary=(
+                        "Candidate-controlled test or test-configuration changes were "
+                        "quarantined, but no application change remained to verify."
+                    ),
                     protected_inputs_changed=protected_inputs_changed,
                     changed_files=changed_files,
                     patch_check=patch_check.as_evidence(),
                     test_execution=CommandEvidence(
                         status="not_run",
-                        output_preview="Tests were not run after protected inputs changed.",
+                        output_preview="No application patch remained after quarantine.",
                     ),
                 ),
                 run_directory,
             )
 
-        if not _uses_pytest(workspace, snapshot_before):
+        execution_workspace = run_directory / "execution-workspace"
+        execution_clone = self._run(
+            [
+                "git",
+                "clone",
+                "--quiet",
+                "--no-local",
+                str(repository),
+                str(execution_workspace),
+            ],
+            timeout_seconds=GIT_TIMEOUT_SECONDS,
+        )
+        if execution_clone.returncode != 0 or execution_clone.timed_out:
+            return self._write_report(
+                self._report(
+                    run_id=run_id,
+                    request=request,
+                    repository=repository,
+                    source_commit=source_commit,
+                    digests=digests,
+                    snapshot_before=snapshot_before,
+                    snapshot_after=snapshot_after,
+                    verdict="INCONCLUSIVE",
+                    summary="AgentProof could not create its frozen-test execution workspace.",
+                    protected_inputs_changed=protected_inputs_changed,
+                    changed_files=changed_files,
+                    patch_check=patch_check.as_evidence(),
+                    test_execution=CommandEvidence(
+                        status="not_run",
+                        output_preview="The application-only patch was not executed.",
+                    ),
+                ),
+                run_directory,
+            )
+
+        application_apply = self._run(
+            [
+                "git",
+                "-C",
+                str(execution_workspace),
+                "apply",
+                "--recount",
+                "--whitespace=nowarn",
+                str(application_patch_path),
+            ],
+            timeout_seconds=GIT_TIMEOUT_SECONDS,
+        )
+        if application_apply.returncode != 0 or application_apply.timed_out:
+            return self._write_report(
+                self._report(
+                    run_id=run_id,
+                    request=request,
+                    repository=repository,
+                    source_commit=source_commit,
+                    digests=digests,
+                    snapshot_before=snapshot_before,
+                    snapshot_after=snapshot_after,
+                    verdict="INCONCLUSIVE",
+                    summary="AgentProof could not apply its quarantined application patch.",
+                    protected_inputs_changed=protected_inputs_changed,
+                    changed_files=changed_files,
+                    patch_check=patch_check.as_evidence(),
+                    test_execution=CommandEvidence(
+                        status="not_run",
+                        output_preview=_preview(application_apply.output),
+                    ),
+                ),
+                run_directory,
+            )
+
+        if not _uses_pytest(execution_workspace, snapshot_before):
             return self._write_report(
                 self._report(
                     run_id=run_id,
@@ -378,6 +472,7 @@ class DeterministicVerifier:
                     snapshot_after=snapshot_after,
                     verdict="INCONCLUSIVE",
                     summary="No supported pytest baseline was found in this repository.",
+                    protected_inputs_changed=protected_inputs_changed,
                     changed_files=changed_files,
                     patch_check=patch_check.as_evidence(),
                     test_execution=CommandEvidence(
@@ -388,9 +483,44 @@ class DeterministicVerifier:
                 run_directory,
             )
 
+        quarantined = set(protected_inputs_changed)
+        frozen_test_targets = [
+            path
+            for path in snapshot_before.files
+            if _is_pytest_target(Path(path)) and path not in quarantined
+        ]
+        if not frozen_test_targets:
+            return self._write_report(
+                self._report(
+                    run_id=run_id,
+                    request=request,
+                    repository=repository,
+                    source_commit=source_commit,
+                    digests=digests,
+                    snapshot_before=snapshot_before,
+                    snapshot_after=snapshot_after,
+                    verdict="INCONCLUSIVE",
+                    summary=(
+                        "Candidate test changes were quarantined, but no unchanged frozen pytest "
+                        "module remained for deterministic execution."
+                    ),
+                    protected_inputs_changed=protected_inputs_changed,
+                    changed_files=changed_files,
+                    patch_check=patch_check.as_evidence(),
+                    test_execution=CommandEvidence(
+                        status="not_run",
+                        output_preview=(
+                            "An independent challenge is required because every approved pytest "
+                            "module was changed by the candidate."
+                        ),
+                    ),
+                ),
+                run_directory,
+            )
+
         test_result = self._run(
-            PYTEST_COMMAND,
-            cwd=workspace,
+            [*PYTEST_COMMAND, *frozen_test_targets],
+            cwd=execution_workspace,
             timeout_seconds=request.timeout_seconds,
         )
         if test_result.timed_out:
@@ -401,10 +531,16 @@ class DeterministicVerifier:
             summary = "The immutable baseline test suite failed after the patch was applied."
         else:
             verdict = "INCONCLUSIVE"
-            summary = (
-                "Baseline evidence passed, but independent challenge tests have not yet been "
-                "performed."
-            )
+            if protected_inputs_changed:
+                summary = (
+                    "Unchanged frozen baseline tests passed with candidate test/configuration "
+                    "changes quarantined; an independent challenge is still required."
+                )
+            else:
+                summary = (
+                    "Baseline evidence passed, but independent challenge tests have not yet "
+                    "been performed."
+                )
 
         return self._write_report(
             self._report(
@@ -417,6 +553,7 @@ class DeterministicVerifier:
                 snapshot_after=snapshot_after,
                 verdict=verdict,
                 summary=summary,
+                protected_inputs_changed=protected_inputs_changed,
                 changed_files=changed_files,
                 patch_check=patch_check.as_evidence(),
                 test_execution=test_result.as_evidence(),
@@ -487,7 +624,15 @@ class DeterministicVerifier:
         protected_before: dict[str, str],
     ) -> list[ChangedFile]:
         result = self._run(
-            ["git", "-C", str(workspace), "diff", "--numstat", "HEAD"],
+            [
+                "git",
+                "-C",
+                str(workspace),
+                "diff",
+                "--numstat",
+                "--no-renames",
+                "HEAD",
+            ],
             timeout_seconds=GIT_TIMEOUT_SECONDS,
         )
         if result.returncode != 0 or result.timed_out:
@@ -505,7 +650,7 @@ class DeterministicVerifier:
                     path=path,
                     added_lines=int(added) if added.isdigit() else 0,
                     deleted_lines=int(deleted) if deleted.isdigit() else 0,
-                    protected=path in protected_before,
+                    protected=(path in protected_before or _is_protected_path(Path(path))),
                 )
             )
             recorded_paths.add(path)
@@ -532,10 +677,62 @@ class DeterministicVerifier:
                         path=path,
                         added_lines=added_lines,
                         deleted_lines=0,
-                        protected=False,
+                        protected=_is_protected_path(relative),
                     )
                 )
         return sorted(files, key=lambda changed: changed.path)
+
+    def _application_patch(self, workspace: Path, changed_files: list[ChangedFile]) -> str:
+        sections: list[str] = []
+        for changed in changed_files:
+            if changed.protected:
+                continue
+            command = [
+                "git",
+                "-C",
+                str(workspace),
+                "diff",
+                "--no-ext-diff",
+                "--no-renames",
+                "--binary",
+                "--full-index",
+                "HEAD",
+                "--",
+                changed.path,
+            ]
+            completed = self._run(command, timeout_seconds=GIT_TIMEOUT_SECONDS)
+            if completed.returncode != 0 or completed.timed_out:
+                raise VerificationInputError(
+                    "AgentProof could not isolate the application patch from test changes."
+                )
+            section = completed.output
+            source = workspace / changed.path
+            if not section and source.is_file():
+                intent = self._run(
+                    [
+                        "git",
+                        "-C",
+                        str(workspace),
+                        "add",
+                        "--intent-to-add",
+                        "--",
+                        changed.path,
+                    ],
+                    timeout_seconds=GIT_TIMEOUT_SECONDS,
+                )
+                if intent.returncode != 0 or intent.timed_out:
+                    raise VerificationInputError(
+                        "AgentProof could not isolate a newly added application file."
+                    )
+                completed = self._run(command, timeout_seconds=GIT_TIMEOUT_SECONDS)
+                if completed.returncode != 0 or completed.timed_out:
+                    raise VerificationInputError(
+                        "AgentProof could not prepare a newly added application file."
+                    )
+                section = completed.output
+            if section:
+                sections.append(section.rstrip("\n"))
+        return "\n".join(sections) + "\n" if sections else ""
 
     def _report(
         self,

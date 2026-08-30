@@ -456,6 +456,7 @@ required JSON object.
                     str(workspace),
                     "diff",
                     "--no-ext-diff",
+                    "--no-renames",
                     "--binary",
                     "--full-index",
                     "HEAD",
@@ -475,18 +476,14 @@ required JSON object.
             section = completed.stdout
             source = workspace / path
             if not section and source.is_file():
-                added = subprocess.run(
+                intent = subprocess.run(
                     [
                         "git",
                         "-C",
                         str(workspace),
-                        "diff",
-                        "--no-index",
-                        "--no-ext-diff",
-                        "--binary",
-                        "--full-index",
+                        "add",
+                        "--intent-to-add",
                         "--",
-                        "/dev/null",
                         changed.path,
                     ],
                     check=False,
@@ -497,7 +494,31 @@ required JSON object.
                     timeout=30,
                     env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
                 )
-                if added.returncode not in {0, 1}:
+                if intent.returncode != 0:
+                    raise ChallengeError("AgentProof could not prepare newly added model context.")
+                added = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(workspace),
+                        "diff",
+                        "--no-ext-diff",
+                        "--no-renames",
+                        "--binary",
+                        "--full-index",
+                        "HEAD",
+                        "--",
+                        changed.path,
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=30,
+                    env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                )
+                if added.returncode != 0:
                     raise ChallengeError("AgentProof could not prepare newly added model context.")
                 section = added.stdout
             remaining = MAX_PROMPT_PATCH_CHARS - used

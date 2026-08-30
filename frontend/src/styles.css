@@ -831,6 +831,13 @@ textarea:focus {
   color: var(--orange);
 }
 
+.model-context-note {
+  margin: -6px 0 0;
+  color: var(--faint);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
 .challenge-evidence {
   display: grid;
   grid-template-columns: 1.4fr 1fr 0.7fr;

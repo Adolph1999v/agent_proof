@@ -109,6 +109,12 @@ by the proposal; `UNSAFE` requires a concrete candidate regression; ambiguous pa
 `INCONCLUSIVE`. Static validation is not a complete operating-system sandbox, so production use still
 requires the planned container-level executor.
 
+Candidate-authored tests and pytest configuration are recorded but quarantined. AgentProof constructs
+an application-only patch and executes every unchanged approved pytest module against it. This permits
+normal regression-test additions without trusting them, while edits to one test cannot suppress the
+remaining frozen checks. If no unchanged approved module remains, AgentProof reports insufficient
+deterministic evidence instead of manufacturing a pass.
+
 ## Cross-platform decision
 
 The product is a local web application because a browser interface is consistent across operating systems. Platform-specific process isolation will remain behind a backend adapter so the evaluation can use a documented portable mode while stronger sandbox integrations can be added later.

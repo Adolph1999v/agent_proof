@@ -72,10 +72,16 @@ For the recorded LM Studio smoke run, exactly one existing model was loaded:
 
 ```bash
 lms server start --port 1234 --bind 127.0.0.1
-lms load qwen/qwen3.6-27b --gpu max --context-length 16384 --parallel 1 \
+lms load qwen/qwen3.6-27b --gpu max --context-length 49152 --parallel 1 \
   --identifier agentproof-qwen3.6-27b --ttl 900 --yes
 make phase3-smoke
 ```
+
+The same load configuration is available as `make model-qwen`. Qwen3.6-27B supports a much larger
+native window, but 48K is the AgentProof default for a 48GB unified-memory Mac: it leaves more headroom
+than 64K for the Q6 model, operating system, inference buffers, and test workspaces. Repository prompts
+remain independently bounded; a larger model window is a safety margin, not permission to dump an
+entire repository into one request.
 
 The model remains outside the repository and is not duplicated by AgentProof. The `--parallel 1`
 setting and AgentProof's process-wide request lock prevent concurrent inference. The 15-minute idle TTL

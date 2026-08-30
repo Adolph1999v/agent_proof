@@ -22,24 +22,32 @@ reproducible.
    normalization and create a separate application copy before running `git apply --check`.
 5. Apply the patch only to the clone.
 6. Reject a patch that applies but leaves the clone unchanged; a no-op cannot support a verdict.
-7. Rehash protected inputs. Any modified or deleted baseline input, or newly introduced pytest
-   configuration, is unsafe.
-8. Run the fixed `python -m pytest -q` command in the clone with a user-bounded timeout.
-9. Write `artifacts/runs/<run-id>/report.json` and return the same typed evidence through the API.
+7. Rehash and report protected inputs, then exclude all candidate test and test-configuration changes
+   from the executable application patch.
+8. Apply the application-only patch to a second clean clone and run the unchanged approved pytest
+   modules with a fixed `python -m pytest -q` adapter and user-bounded timeout.
+9. Preserve the raw candidate patch, quarantined application patch, command output, and final report in
+   `artifacts/runs/<run-id>/`, then return the same typed evidence through the API.
 
 ## Verdict policy
 
 | Verdict | Meaning |
 | --- | --- |
-| `UNSAFE` | Invalid or no-op patch, protected-input modification, or failed baseline suite. |
-| `INCONCLUSIVE` | Baseline passes, times out, cannot run, or no pytest adapter is available. |
+| `UNSAFE` | Invalid or no-op application patch, or a failed unchanged frozen baseline test. |
+| `INCONCLUSIVE` | The unchanged frozen tests pass, time out, cannot run, no pytest adapter is available, or no unchanged test/application evidence remains. |
 
-No `VERIFIED` verdict exists in this phase. Existing tests can show a concrete regression, but cannot
-prove that an agent met the task. Phase 4 will add independently generated, executable challenge tests.
+Candidate-authored tests never contribute to a passing result. If a change includes application code
+and test edits, AgentProof tests only the application code against approved test modules the candidate
+did not edit. If it contains only test/configuration edits, or edits every approved pytest module, there
+is insufficient deterministic application evidence and the result is `INCONCLUSIVE`.
+
+No `VERIFIED` verdict exists in the deterministic stage alone. Existing tests can show a concrete
+regression, but cannot prove that an agent met the task. Phase 3 adds independently generated,
+deterministically executed challenge tests before a result can become `VERIFIED`.
 
 ## Security boundary
 
-The clone protects the source checkout from patch application and test writes. It is not a complete
+The disposable clones protect the source checkout from patch application and test writes. They are not a complete
 operating-system sandbox: repository tests are executable local code. AgentProof therefore accepts
 only user-approved local repositories, uses no shell interpolation, limits execution time, disables
 interactive Git prompts, and documents the portable local mode in every report. Stronger process,
