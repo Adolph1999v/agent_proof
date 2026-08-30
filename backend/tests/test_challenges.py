@@ -8,8 +8,10 @@ from agentproof.challenges import (
     MAX_CHANGED_APPLICATION_FILES,
     MAX_TASK_CHARS,
     MAX_USER_PROMPT_CHARS,
+    SYSTEM_PROMPT,
     ChallengeError,
     IndependentChallengeRunner,
+    _validate_test,
 )
 from agentproof.models import ChangedFile, IndependentChallengeRequest, VerificationRequest
 from agentproof.provider import ModelCompletion, OpenAICompatibleProvider, ProviderError
@@ -29,6 +31,25 @@ class ScriptedProvider:
         self.prompts.append((system_prompt, user_prompt))
         return ModelCompletion(
             content=json.dumps(self.response),
+            duration_ms=12,
+            prompt_tokens=100,
+            completion_tokens=40,
+        )
+
+
+class SequenceProvider:
+    def __init__(self, responses: list[dict[str, object]]) -> None:
+        self.responses = iter(responses)
+        self.prompts: list[tuple[str, str]] = []
+
+    @property
+    def label(self) -> str:
+        return "scripted:sequence-model"
+
+    def complete(self, system_prompt: str, user_prompt: str) -> ModelCompletion:
+        self.prompts.append((system_prompt, user_prompt))
+        return ModelCompletion(
+            content=json.dumps(next(self.responses)),
             duration_ms=12,
             prompt_tokens=100,
             completion_tokens=40,
@@ -161,6 +182,109 @@ def test_change_challenge_is_verified_only_when_baseline_fails_and_candidate_pas
     assert "candidate_application_marker" in provider.prompts[0][1]
 
 
+def test_invalid_first_proposal_gets_one_bounded_repair_attempt(tmp_path: Path) -> None:
+    task = "Change the service value from 1 to 2."
+    repository = create_repository(tmp_path)
+    artifacts_root = tmp_path / "artifacts" / "runs"
+    verifier, run_id = verification_run(repository, artifacts_root, task)
+    provider = SequenceProvider(
+        [
+            {
+                "behavior_mode": "change",
+                "summary": "Broken syntax.",
+                "invariants": ["value is two"],
+                "test_code": "def test_value(:\n    assert value() == 2",
+            },
+            {
+                "behavior_mode": "change",
+                "summary": "The requested value is two.",
+                "invariants": ["value() returns 2"],
+                "test_code": "from service import value\n\n\ndef test_value() -> None:\n"
+                "    assert value() == 2\n",
+            },
+        ]
+    )
+
+    report = IndependentChallengeRunner(verifier, provider).run(
+        challenge_request(run_id, task)
+    )
+
+    assert report.verdict == "VERIFIED"
+    assert report.model.prompt_tokens == 200
+    assert report.model.completion_tokens == 80
+    assert len(provider.prompts) == 2
+    trajectory = json.loads((tmp_path / report.trajectory_path).read_text(encoding="utf-8"))
+    assert len(trajectory["attempts"]) == 2
+    assert trajectory["attempts"][0]["proposal_accepted"] is False
+    assert trajectory["attempts"][1]["proposal_accepted"] is True
+
+
+def test_both_failed_executions_get_one_evidence_guided_repair(tmp_path: Path) -> None:
+    task = "Change the service value from 1 to 2."
+    repository = create_repository(tmp_path)
+    verifier, run_id = verification_run(repository, tmp_path / "artifacts" / "runs", task)
+    provider = SequenceProvider(
+        [
+            {
+                "behavior_mode": "change",
+                "summary": "Incorrect expectation.",
+                "invariants": ["value() returns 3"],
+                "test_code": "from service import value\n\n\ndef test_value() -> None:\n"
+                "    assert value() == 3\n",
+            },
+            {
+                "behavior_mode": "change",
+                "summary": "Corrected from execution evidence.",
+                "invariants": ["value() returns 2"],
+                "test_code": "from service import value\n\n\ndef test_value() -> None:\n"
+                "    assert value() == 2\n",
+            },
+        ]
+    )
+
+    report = IndependentChallengeRunner(verifier, provider).run(
+        challenge_request(run_id, task)
+    )
+
+    assert report.verdict == "VERIFIED"
+    assert len(provider.prompts) == 2
+    assert "did not establish" in provider.prompts[1][1]
+    assert "assert 1 == 3" in provider.prompts[1][1]
+
+
+def test_inconclusive_preservation_test_gets_evidence_guided_repair(
+    tmp_path: Path,
+) -> None:
+    task = "Refactor the service without changing its returned value."
+    repository = create_repository(tmp_path)
+    verifier, run_id = verification_run(repository, tmp_path / "artifacts" / "runs", task)
+    provider = SequenceProvider(
+        [
+            {
+                "behavior_mode": "preserve",
+                "summary": "Incorrectly tests the candidate value.",
+                "invariants": ["value() returns 2"],
+                "test_code": "from service import value\n\n\ndef test_value() -> None:\n"
+                "    assert value() == 2\n",
+            },
+            {
+                "behavior_mode": "preserve",
+                "summary": "Correctly tests the approved value.",
+                "invariants": ["value() remains 1"],
+                "test_code": "from service import value\n\n\ndef test_value() -> None:\n"
+                "    assert value() == 1\n",
+            },
+        ]
+    )
+
+    report = IndependentChallengeRunner(verifier, provider).run(
+        challenge_request(run_id, task)
+    )
+
+    assert report.verdict == "UNSAFE"
+    assert "baseline=failed, candidate=passed" in provider.prompts[1][1]
+
+
 def test_prompt_context_is_bounded_and_prioritizes_python_application_files(
     tmp_path: Path,
 ) -> None:
@@ -186,6 +310,80 @@ def test_prompt_context_is_bounded_and_prioritizes_python_application_files(
     assert prompt.endswith("/no_think")
     assert "test.py" not in prompt
     assert "README.md" not in prompt
+
+
+def test_system_prompt_bounds_challenges_and_preserves_refactor_behavior() -> None:
+    assert "Do not use parametrization" in SYSTEM_PROMPT
+    assert 'use behavior_mode "preserve"' in SYSTEM_PROMPT
+    assert "one to three direct assertions" in SYSTEM_PROMPT
+
+
+def test_generated_challenge_must_import_application_code(tmp_path: Path) -> None:
+    task = "Change the service value from 1 to 2."
+    repository = create_repository(tmp_path)
+    verifier, run_id = verification_run(repository, tmp_path / "artifacts" / "runs", task)
+    provider = SequenceProvider(
+        [
+            {
+                "behavior_mode": "change",
+                "summary": "Missing import.",
+                "invariants": ["value() returns 2"],
+                "test_code": "def test_value() -> None:\n    assert value() == 2\n",
+            },
+            {
+                "behavior_mode": "change",
+                "summary": "Imports the application.",
+                "invariants": ["value() returns 2"],
+                "test_code": "from service import value\n\n\ndef test_value() -> None:\n"
+                "    assert value() == 2\n",
+            },
+        ]
+    )
+
+    report = IndependentChallengeRunner(verifier, provider).run(
+        challenge_request(run_id, task)
+    )
+
+    assert report.verdict == "VERIFIED"
+    assert "must import the application" in provider.prompts[1][1]
+
+
+def test_pytest_raises_is_accepted_as_a_nontrivial_check() -> None:
+    _validate_test(
+        "import pytest\nfrom service import value\n\n\ndef test_error() -> None:\n"
+        "    with pytest.raises(ValueError):\n        value()\n"
+    )
+
+
+def test_preservation_refactor_uses_task_intent_over_model_mode(tmp_path: Path) -> None:
+    task = "Refactor the service without changing its returned value."
+    repository = create_repository(tmp_path)
+    verifier, run_id = verification_run(repository, tmp_path / "artifacts" / "runs", task)
+    provider = SequenceProvider(
+        [
+            {
+                "behavior_mode": "change",
+                "summary": "Wrong mode.",
+                "invariants": ["value() returns 2"],
+                "test_code": "from service import value\n\n\ndef test_value() -> None:\n"
+                "    assert value() == 2\n",
+            },
+            {
+                "behavior_mode": "preserve",
+                "summary": "Preserve the approved result.",
+                "invariants": ["value() remains 1"],
+                "test_code": "from service import value\n\n\ndef test_value() -> None:\n"
+                "    assert value() == 1\n",
+            },
+        ]
+    )
+
+    report = IndependentChallengeRunner(verifier, provider).run(
+        challenge_request(run_id, task)
+    )
+
+    assert report.verdict == "UNSAFE"
+    assert "behavior_mode='preserve'" in provider.prompts[1][1]
 
 
 def test_prompt_truncates_task_and_includes_at_most_four_relevant_files(

@@ -24,7 +24,12 @@ from agentproof.models import (
     IndependentChallengeRequest,
     ModelRunEvidence,
 )
-from agentproof.provider import ChallengeProvider, OpenAICompatibleProvider, ProviderError
+from agentproof.provider import (
+    ChallengeProvider,
+    ModelCompletion,
+    OpenAICompatibleProvider,
+    ProviderError,
+)
 from agentproof.verifier import DeterministicVerifier, VerificationInputError
 
 MAX_TASK_CHARS = 2_000
@@ -36,6 +41,7 @@ MAX_SOURCE_FILE_CHARS = 2_000
 MAX_FILE_INDEX_CHARS = 1_500
 MAX_USER_PROMPT_CHARS = 18_000
 MAX_TEST_CHARS = 20_000
+MAX_CHALLENGE_ATTEMPTS = 3
 NO_THINK_DIRECTIVE = "\n/no_think"
 CHALLENGE_TEST_NAME = "agentproof_challenge_test.py"
 TEST_DIRECTORY_NAMES = {"test", "tests", "__tests__", "spec", "specs"}
@@ -110,8 +116,14 @@ Rules:
 - Do not use network access, subprocesses, dynamic execution, environment variables, arbitrary
   filesystem access, monkeypatching, sleeps, randomness, skip, or xfail.
 - The test must import real application code and contain a non-trivial assertion.
-- Select one concrete behavior quickly. Do not exhaustively audit the repository or repeat analysis.
-- Finish the complete JSON response within 300 generated tokens.
+- Select exactly one concrete behavior stated by the task. Do not add requirements or contradict it.
+- Write one short test function with one to three direct assertions. Do not use parametrization.
+- For arithmetic, calculate the expected literal carefully from the rule before writing the test.
+- If the task is a refactor or simplification that says "without changing", "preserve", or
+  "unchanged", use behavior_mode "preserve" and test an unambiguous approved behavior.
+- Otherwise use behavior_mode "change" only for a behavior explicitly requested by the task.
+- Do not exhaustively audit the repository or repeat analysis.
+- Finish the complete JSON response within 220 generated tokens and 12 lines of test code.
 - Use behavior_mode "change" when the test should fail on the approved baseline and pass on the
   candidate. Use "preserve" when the same required behavior should pass on both.
 - Return exactly this shape:
@@ -186,12 +198,40 @@ def _validate_test(code: str) -> None:
         if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
     ]
     assertions = [node for node in ast.walk(tree) if isinstance(node, ast.Assert)]
-    if not test_functions or not assertions:
+    raises_contexts = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.With)
+        and any(
+            isinstance(item.context_expr, ast.Call)
+            and isinstance(item.context_expr.func, ast.Attribute)
+            and isinstance(item.context_expr.func.value, ast.Name)
+            and item.context_expr.func.value.id == "pytest"
+            and item.context_expr.func.attr == "raises"
+            for item in node.items
+        )
+    ]
+    if not test_functions or not (assertions or raises_contexts):
         raise ChallengeError(
-            "The generated challenge must contain a pytest test function and an assertion."
+            "The generated challenge must contain a pytest test function and an assertion or "
+            "pytest.raises check."
         )
     if any(isinstance(node.test, ast.Constant) for node in assertions):
         raise ChallengeError("The generated challenge contains a trivial constant assertion.")
+
+    imported_roots = {
+        alias.name.split(".", maxsplit=1)[0]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+    imported_roots.update(
+        (node.module or "").split(".", maxsplit=1)[0]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+    )
+    if not (imported_roots - {"pytest"}):
+        raise ChallengeError("The generated challenge must import the application code it tests.")
 
     for function in test_functions:
         argument_names = {argument.arg for argument in function.args.args}
@@ -279,79 +319,161 @@ class IndependentChallengeRunner:
         challenge_directory.mkdir(parents=True, exist_ok=False)
         relative_root = f"artifacts/runs/{request.run_id}/challenges/{challenge_id}"
         trajectory_path = challenge_directory / "trajectory.json"
-        try:
-            completion = provider.complete(SYSTEM_PROMPT, prompt)
-        except ProviderError as error:
-            self._write_trajectory(
-                trajectory_path,
-                prompt,
-                error=str(error),
-            )
-            raise ChallengeError(
-                f"{error} Failure evidence: {relative_root}/trajectory.json"
-            ) from error
-
-        if not completion.content.strip():
-            if completion.finish_reason == "length":
-                message = (
-                    "The local model exhausted its context window before producing the challenge "
-                    f"JSON ({completion.prompt_tokens} prompt + "
-                    f"{completion.completion_tokens} completion tokens)."
-                )
-            else:
-                message = "The local model returned an empty challenge response."
-            self._write_trajectory(
-                trajectory_path,
-                prompt,
-                completion=completion,
-                error=message,
-            )
-            raise ChallengeError(
-                f"{message} Failure evidence: {relative_root}/trajectory.json"
-            )
-
-        try:
-            proposal = _parse_proposal(completion.content)
-            _validate_test(proposal.test_code)
-        except ChallengeError as error:
-            self._write_trajectory(
-                trajectory_path,
-                prompt,
-                completion=completion,
-                error=str(error),
-            )
-            raise ChallengeError(
-                f"{error} Failure evidence: {relative_root}/trajectory.json"
-            ) from error
-
-        self._write_trajectory(
-            trajectory_path,
-            prompt,
-            completion=completion,
-            proposal_accepted=True,
-        )
-
         baseline_workspace = challenge_directory / "baseline"
         candidate_workspace = challenge_directory / "candidate"
-
         self._clone(source_workspace, baseline_workspace)
         self._clone(source_workspace, candidate_workspace)
         self._apply(candidate_workspace, patch_path)
-        for workspace in (baseline_workspace, candidate_workspace):
-            (workspace / CHALLENGE_TEST_NAME).write_text(proposal.test_code, encoding="utf-8")
 
-        baseline_execution = self._run_test(
-            baseline_workspace,
-            request.test_timeout_seconds,
-        )
-        candidate_execution = self._run_test(
-            candidate_workspace,
-            request.test_timeout_seconds,
-        )
-        verdict, summary = self._verdict(
-            proposal.behavior_mode,
-            baseline_execution,
-            candidate_execution,
+        attempts: list[dict[str, object]] = []
+        completions: list[ModelCompletion] = []
+        attempt_prompts: list[str] = []
+        current_prompt = prompt
+        proposal = None
+        baseline_execution = None
+        candidate_execution = None
+        verdict = "INCONCLUSIVE"
+        summary = "The independent challenge did not complete."
+
+        for attempt_number in range(1, MAX_CHALLENGE_ATTEMPTS + 1):
+            attempt_prompts.append(current_prompt)
+            try:
+                completion = provider.complete(SYSTEM_PROMPT, current_prompt)
+            except ProviderError as error:
+                attempts.append(
+                    {
+                        "attempt": attempt_number,
+                        "prompt": current_prompt,
+                        "error": str(error),
+                    }
+                )
+                self._write_trajectory(
+                    trajectory_path,
+                    prompt,
+                    error=str(error),
+                    attempts=attempts,
+                )
+                raise ChallengeError(
+                    f"{error} Failure evidence: {relative_root}/trajectory.json"
+                ) from error
+            completions.append(completion)
+
+            attempt: dict[str, object] = {
+                "attempt": attempt_number,
+                "prompt": current_prompt,
+                "model_response": completion.content,
+                "model_reasoning": completion.reasoning_content,
+                "model_finish_reason": completion.finish_reason,
+                "model_usage": {
+                    "prompt_tokens": completion.prompt_tokens,
+                    "completion_tokens": completion.completion_tokens,
+                    **completion.extra_usage,
+                },
+                "proposal_accepted": False,
+                "error": None,
+                "baseline_execution": None,
+                "candidate_execution": None,
+            }
+
+            if not completion.content.strip():
+                if completion.finish_reason == "length":
+                    message = (
+                        "The local model exhausted its context window before producing the "
+                        f"challenge JSON ({completion.prompt_tokens} prompt + "
+                        f"{completion.completion_tokens} completion tokens)."
+                    )
+                else:
+                    message = "The local model returned an empty challenge response."
+                attempt["error"] = message
+                attempts.append(attempt)
+                if attempt_number < MAX_CHALLENGE_ATTEMPTS:
+                    current_prompt = self._repair_prompt(prompt, message, completion.content)
+                    continue
+                self._write_trajectory(
+                    trajectory_path,
+                    prompt,
+                    completion=completion,
+                    error=message,
+                    attempts=attempts,
+                )
+                raise ChallengeError(
+                    f"{message} Failure evidence: {relative_root}/trajectory.json"
+                )
+
+            try:
+                proposal = _parse_proposal(completion.content)
+                _validate_test(proposal.test_code)
+                effective_mode = self._effective_behavior_mode(
+                    request.task,
+                    proposal.behavior_mode,
+                )
+                if effective_mode != proposal.behavior_mode:
+                    proposal = proposal.model_copy(update={"behavior_mode": effective_mode})
+            except ChallengeError as error:
+                message = str(error)
+                attempt["error"] = message
+                attempts.append(attempt)
+                if attempt_number < MAX_CHALLENGE_ATTEMPTS:
+                    current_prompt = self._repair_prompt(prompt, message, completion.content)
+                    continue
+                self._write_trajectory(
+                    trajectory_path,
+                    prompt,
+                    completion=completion,
+                    error=message,
+                    attempts=attempts,
+                )
+                raise ChallengeError(
+                    f"{error} Failure evidence: {relative_root}/trajectory.json"
+                ) from error
+
+            attempt["proposal_accepted"] = True
+            for workspace in (baseline_workspace, candidate_workspace):
+                (workspace / CHALLENGE_TEST_NAME).write_text(
+                    proposal.test_code,
+                    encoding="utf-8",
+                )
+            baseline_execution = self._run_test(
+                baseline_workspace,
+                request.test_timeout_seconds,
+            )
+            candidate_execution = self._run_test(
+                candidate_workspace,
+                request.test_timeout_seconds,
+            )
+            attempt["baseline_execution"] = baseline_execution.model_dump(mode="json")
+            attempt["candidate_execution"] = candidate_execution.model_dump(mode="json")
+            verdict, summary = self._verdict(
+                proposal.behavior_mode,
+                baseline_execution,
+                candidate_execution,
+            )
+            attempts.append(attempt)
+            if (
+                verdict == "INCONCLUSIVE"
+                and attempt_number < MAX_CHALLENGE_ATTEMPTS
+            ):
+                current_prompt = self._repair_prompt(
+                    prompt,
+                    "The generated test did not establish the requested baseline/candidate "
+                    f"relationship for behavior_mode={proposal.behavior_mode!r} "
+                    f"(baseline={baseline_execution.status}, "
+                    f"candidate={candidate_execution.status}).",
+                    completion.content,
+                    baseline_execution.output_preview,
+                    candidate_execution.output_preview,
+                )
+                continue
+            break
+
+        if proposal is None or baseline_execution is None or candidate_execution is None:
+            raise ChallengeError(
+                "The independent challenge did not produce executable evidence. "
+                f"Failure evidence: {relative_root}/trajectory.json"
+            )
+        completion = self._aggregate_completions(completions)
+        combined_prompt = "\n\n--- AgentProof bounded repair attempt ---\n\n".join(
+            attempt_prompts
         )
 
         report = IndependentChallengeReport(
@@ -370,8 +492,8 @@ class IndependentChallengeRunner:
             model=ModelRunEvidence(
                 provider=provider.label,
                 model=getattr(provider, "model", request.model_name),
-                prompt_sha256=_sha256(prompt),
-                response_sha256=_sha256(completion.content),
+                prompt_sha256=_sha256(combined_prompt),
+                response_sha256=_sha256("\n".join(item.content for item in completions)),
                 duration_ms=completion.duration_ms,
                 prompt_tokens=completion.prompt_tokens,
                 completion_tokens=completion.completion_tokens,
@@ -392,6 +514,7 @@ class IndependentChallengeRunner:
             proposal_accepted=True,
             baseline_execution=baseline_execution.model_dump(mode="json"),
             candidate_execution=candidate_execution.model_dump(mode="json"),
+            attempts=attempts,
         )
         (challenge_directory / "report.json").write_text(
             report.model_dump_json(indent=2),
@@ -402,6 +525,12 @@ class IndependentChallengeRunner:
     @staticmethod
     def _user_prompt(changed_files, workspace: Path, task: str, patch: str) -> str:
         changed_files = list(changed_files)[:MAX_CHANGED_APPLICATION_FILES]
+        module_hints = []
+        for changed in changed_files:
+            module_path = Path(changed.path).with_suffix("")
+            parts = [part for part in module_path.parts if part not in {"src", "__init__"}]
+            if parts:
+                module_hints.append(".".join(parts))
         sections: list[str] = []
         used = 0
         for changed in changed_files:
@@ -426,6 +555,10 @@ class IndependentChallengeRunner:
 
 ## Changed Python application files
 {file_index}
+
+## Required application import
+The test must explicitly import the code under test. Candidate module names: \
+{", ".join(module_hints) or "(derive from the changed file paths)"}.
 
 ## Candidate application patch (test files excluded)
 {patch[:MAX_PROMPT_PATCH_CHARS]}
@@ -467,6 +600,21 @@ required JSON object.
                 changed.path,
             ),
         )[:MAX_CHANGED_APPLICATION_FILES]
+
+    @staticmethod
+    def _effective_behavior_mode(
+        task: str,
+        model_mode: Literal["change", "preserve"],
+    ) -> Literal["change", "preserve"]:
+        normalized = " ".join(task.casefold().split())
+        preservation_refactor = bool(
+            re.search(
+                r"\b(refactor|reorganize|simplify|clean up)\b.*"
+                r"\b(without changing|unchanged|preserv(?:e|ing)|same behavior|same results)\b",
+                normalized,
+            )
+        )
+        return "preserve" if preservation_refactor else model_mode
 
     @staticmethod
     def _application_patch(workspace: Path, changed_files) -> str:
@@ -555,6 +703,54 @@ required JSON object.
         return "\n".join(sections) or "(No non-test patch content was available.)"
 
     @staticmethod
+    def _repair_prompt(
+        original_prompt: str,
+        failure: str,
+        previous_response: str,
+        baseline_output: str = "",
+        candidate_output: str = "",
+    ) -> str:
+        feedback = f"""{original_prompt.removesuffix(NO_THINK_DIRECTIVE)}
+
+## Bounded repair feedback
+Your previous challenge was rejected: {failure}
+
+Previous response:
+{previous_response[:2_000]}
+"""
+        if baseline_output or candidate_output:
+            feedback += f"""
+
+Approved baseline test output:
+{baseline_output[-1_500:]}
+
+Candidate test output:
+{candidate_output[-1_500:]}
+"""
+        feedback += """
+
+Return a completely corrected JSON object now. Use one simple test and one direct assertion.
+If both versions failed, correct the expectation or select a different task-stated behavior.
+Do not repeat the rejected test.
+"""
+        return f"{feedback}{NO_THINK_DIRECTIVE}"
+
+    @staticmethod
+    def _aggregate_completions(completions: list[ModelCompletion]) -> ModelCompletion:
+        final = completions[-1]
+        return ModelCompletion(
+            content=final.content,
+            duration_ms=sum(item.duration_ms for item in completions),
+            prompt_tokens=sum(item.prompt_tokens for item in completions),
+            completion_tokens=sum(item.completion_tokens for item in completions),
+            finish_reason=final.finish_reason,
+            reasoning_content=final.reasoning_content,
+            extra_usage={
+                "attempts": len(completions),
+            },
+        )
+
+    @staticmethod
     def _write_trajectory(
         path: Path,
         prompt: str,
@@ -564,6 +760,7 @@ required JSON object.
         proposal_accepted: bool = False,
         baseline_execution=None,
         candidate_execution=None,
+        attempts=None,
     ) -> None:
         payload = {
             "system_prompt": SYSTEM_PROMPT,
@@ -584,6 +781,7 @@ required JSON object.
             "error": error,
             "baseline_execution": baseline_execution,
             "candidate_execution": candidate_execution,
+            "attempts": attempts or [],
         }
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -630,7 +828,7 @@ required JSON object.
         command = [sys.executable, "-m", "pytest", "-q", CHALLENGE_TEST_NAME]
         started = time.monotonic()
         temporary_directory = workspace / ".agentproof-temp"
-        temporary_directory.mkdir(exist_ok=False)
+        temporary_directory.mkdir(exist_ok=True)
         environment = {
             "GIT_TERMINAL_PROMPT": "0",
             "HOME": str(temporary_directory),
