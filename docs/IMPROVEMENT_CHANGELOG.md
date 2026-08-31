@@ -1,6 +1,6 @@
 # Improvement Changelog
 
-This is a chronological record of meaningful experiments, failures, evidence, and engineering
+This document is a chronological record of meaningful experiments, failures, evidence, and engineering
 decisions. Older rows describe their exact checkpoint, so their test counts and open work are not the
 current project status. The final measured result is the current submission result.
 

@@ -21,7 +21,7 @@ undefined `date` name. Codex used the saved outputs to make general fixes and ad
 then I replayed the UI cases.
 
 Result: the complete local app, automated checks, evaluation, and submission evidence. See
-[traces/development/codex-building-agentproof.md](traces/development/codex-building-agentproof.md).
+[traces/development/codex-building-agentproof.md](../traces/development/codex-building-agentproof.md).
 
 ## Gemini — project research second opinion
 
@@ -31,7 +31,7 @@ to sharpen my rule: reviewers must be able to reproduce the problem and measure 
 own machine. That helped me choose AgentProof.
 
 Gemini did not write production code or make runtime verdicts. See
-[traces/development/gemini-project-research.md](traces/development/gemini-project-research.md).
+[traces/development/gemini-project-research.md](../traces/development/gemini-project-research.md).
 
 ## Qwen3.6 27B Q6 with OpenCode — bounded development task
 
@@ -41,7 +41,7 @@ After stricter prompts, it completed the backend part. Codex reviewed it, correc
 issues, and connected and simplified the frontend after my manual feedback.
 
 This was supervised delegation, not an unchecked handoff. See
-[traces/development/qwen-opencode-directory-picker.md](traces/development/qwen-opencode-directory-picker.md).
+[traces/development/qwen-opencode-directory-picker.md](../traces/development/qwen-opencode-directory-picker.md).
 
 ## Qwen models inside AgentProof — local challenge agents
 
@@ -55,7 +55,7 @@ test and executes it on both versions. The model cannot declare the final verdic
 bad test, AgentProof rejected or repaired only safe, clear mistakes and kept every attempt in the
 trajectory.
 
-Runtime examples are in [traces/runtime/](traces/runtime/), including successful Qwen2.5 evidence and
+Runtime examples are in [traces/runtime/](../traces/runtime/), including successful Qwen2.5 evidence and
 failed Qwen3.6 experiments.
 
 ## Human checkpoints

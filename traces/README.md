@@ -1,6 +1,6 @@
 # Trajectory Evidence
 
-Start with [`../AGENT_TRAJECTORIES.md`](../AGENT_TRAJECTORIES.md) for a short, first-person overview of
+Start with [`../docs/AGENT_TRAJECTORIES.md`](../docs/AGENT_TRAJECTORIES.md) for a short, first-person overview of
 how every agent, retry, and human checkpoint affected the project.
 
 AgentProof keeps representative evidence in two categories:

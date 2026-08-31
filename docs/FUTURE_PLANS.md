@@ -1,6 +1,6 @@
 # AgentProof Future Plans
 
-These are planned improvements. They are not claims about the current version.
+This document lists planned improvements. They are not claims about the current version.
 
 ## More programming languages
 

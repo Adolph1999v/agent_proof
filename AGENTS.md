@@ -24,4 +24,4 @@ Before committing a meaningful change, run:
 make check
 ```
 
-Update `IMPROVEMENT_CHANGELOG.md` when an experiment changes measured behavior.
+Update `docs/IMPROVEMENT_CHANGELOG.md` when an experiment changes measured behavior.

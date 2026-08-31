@@ -36,7 +36,7 @@ to edit the suite.
 
 The run used local `qwen2.5-coder:7b`, 9,467 prompt tokens, 1,600 completion tokens, and 32.9 seconds
 total on the submission machine. No paid model service was used. Exact inputs and output are
-committed under `evaluation/`.
+committed under `../evaluation/`.
 
 ## Strongest engineering improvement
 
@@ -66,7 +66,7 @@ make evaluate
 
 Expected evaluation headline: baseline `63.6`, AgentProof `100.0`, unsafe detection `20.0` versus
 `100.0`. Detailed environment, Windows commands, runtime, and limitations are in
-`docs/REPRODUCTION.md`.
+`REPRODUCTION.md`.
 
 ## Evidence map
 
@@ -75,11 +75,11 @@ Expected evaluation headline: baseline `63.6`, AgentProof `100.0`, unsafe detect
 - Complete capabilities and boundaries: `PRODUCT_CAPABILITIES.md`
 - Planned improvements: `FUTURE_PLANS.md`
 - Evidence-backed iterations: `IMPROVEMENT_CHANGELOG.md`
-- Evaluation design and result: `docs/EVALUATION.md`
-- Exact reproduction: `docs/REPRODUCTION.md`
-- Public-case provenance: `evaluation/PUBLIC_CASES.md`
-- Machine-readable result: `evaluation/results/recorded-evaluation.json`
-- Representative development/runtime trajectories: `traces/`
+- Evaluation design and result: `EVALUATION.md`
+- Exact reproduction: `REPRODUCTION.md`
+- Public-case provenance: `../evaluation/PUBLIC_CASES.md`
+- Machine-readable result: `../evaluation/results/recorded-evaluation.json`
+- Representative development/runtime trajectories: `../traces/`
 
 ## Honest limitations
 

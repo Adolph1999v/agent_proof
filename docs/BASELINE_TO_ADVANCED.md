@@ -47,5 +47,5 @@ A green test suite is not an independent judge when the code change can edit the
 old evidence and adding a separate challenge made the unsafe cases visible without blocking the
 correct cases in this evaluation.
 
-Exact cases and results are in [evaluation/](evaluation/). The full experiment history is in
+Exact cases and results are in [evaluation/](../evaluation/). The full experiment history is in
 [IMPROVEMENT_CHANGELOG.md](IMPROVEMENT_CHANGELOG.md).

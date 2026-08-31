@@ -1,6 +1,6 @@
 # AgentProof Product Capabilities
 
-This page lists what the submitted version can do. Future ideas are kept in a separate file so they
+This document lists what the submitted version can do. Future ideas are kept in a separate file so they
 are not presented as completed features.
 
 ## Intake and project selection
