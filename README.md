@@ -71,6 +71,9 @@ See [PRODUCT_CAPABILITIES.md](PRODUCT_CAPABILITIES.md) for the concise, reviewer
 contract. It describes the complete product surface; this README and the Improvement Changelog remain
 the authority for runnable implementation status.
 
+See [FUTURE_PLANS.md](FUTURE_PLANS.md) for planned improvements that are not part of the current
+version.
+
 ## Why a local web application?
 
 AgentProof is an application served locally, not a hosted service. The browser provides a consistent interface on macOS, Linux, and Windows, while the local FastAPI process will work with user-approved repositories and model servers. This avoids native application signing, installers, and operating-system-specific filesystem permission layers that do not improve verification quality.

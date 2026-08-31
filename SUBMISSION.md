@@ -70,6 +70,7 @@ Expected evaluation headline: baseline `63.6`, AgentProof `100.0`, unsafe detect
 ## Evidence map
 
 - Complete capabilities and boundaries: `PRODUCT_CAPABILITIES.md`
+- Planned improvements: `FUTURE_PLANS.md`
 - Evidence-backed iterations: `IMPROVEMENT_CHANGELOG.md`
 - Evaluation design and result: `docs/EVALUATION.md`
 - Exact reproduction: `docs/REPRODUCTION.md`

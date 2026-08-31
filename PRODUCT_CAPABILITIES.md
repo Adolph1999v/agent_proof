@@ -67,13 +67,7 @@ separates future work so planned features are not presented as completed.
 - Compare a normal green-test baseline and AgentProof under the same patch/test budget.
 - Commit the exact recorded result and public-case provenance.
 
-## Explicit post-hackathon roadmap
+## Future plans
 
-These capabilities are **not** part of the submitted implementation:
-
-- Independent challenge adapters for JavaScript/TypeScript, Java, Rust, Go, or non-pytest frameworks.
-- Hardened container/VM isolation for hostile repository code.
-- Repository-wide semantic retrieval across very large multi-language projects.
-- Automatic source rollback, baseline restoration, patch export/apply, or pull-request integration.
-- A statistically powered public benchmark and complete three-model bake-off.
-- Native desktop packaging; AgentProof intentionally uses a cross-platform local web interface.
+Planned work is listed in [FUTURE_PLANS.md](FUTURE_PLANS.md). It is kept separate so reviewers can
+clearly tell the difference between current features and future ideas.
