@@ -34,8 +34,8 @@ to edit the suite.
 | Correct-patch acceptance (6 cases) | 100% | **100%** |
 
 The run used local `qwen2.5-coder:7b`, 9,467 prompt tokens, 1,600 completion tokens, and 32.9 seconds
-total on the submission machine. API cost was $0. Exact inputs and output are committed under
-`evaluation/`.
+total on the submission machine. No paid model service was used. Exact inputs and output are
+committed under `evaluation/`.
 
 ## Strongest engineering improvement
 
@@ -85,3 +85,5 @@ Expected evaluation headline: baseline `63.6`, AgentProof `100.0`, unsafe detect
 - Eleven cases are scoped evidence, not proof across every repository.
 - Isolation is application-level disposable cloning and bounded execution, not a hardened VM.
 - The public-derived case reproduces reported behavior without copying the upstream repository.
+- The recorded setup and demos were run on macOS. Windows and Linux steps are documented but were not
+  manually tested for this submission.

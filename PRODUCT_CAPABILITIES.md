@@ -1,7 +1,7 @@
 # AgentProof Product Capabilities
 
-This is the concise reviewer-facing contract for the submitted implementation. The final section
-separates future work so planned features are not presented as completed.
+This page lists what the submitted version can do. Future ideas are kept in a separate file so they
+are not presented as completed features.
 
 ## Intake and project selection
 
@@ -62,7 +62,8 @@ separates future work so planned features are not presented as completed.
 
 - Install Python only in `.venv` through `uv`; frontend packages stay in `frontend/node_modules`.
 - Provide one-command setup, development, lint, test, build, smoke, and evaluation workflows.
-- Run on macOS/Linux through Make and on Windows through documented underlying commands.
+- Run through Make on the tested macOS setup. Linux and Windows commands are documented but were not
+  manually tested for this submission.
 - Recreate eleven dependency-free evaluation repositories from pinned JSON inputs.
 - Compare a normal green-test baseline and AgentProof under the same patch/test budget.
 - Commit the exact recorded result and public-case provenance.

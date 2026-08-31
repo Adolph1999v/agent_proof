@@ -2,15 +2,16 @@
 
 ## Product boundary
 
-AgentProof normally receives a project path, a natural-language task, and optionally the producing
-agent's trace. It identifies the project, discovers changes against that project's approved baseline,
-and returns evidence for a human decision. An explicit patch remains available as an advanced input.
-AgentProof does not merge branches or modify the user's source files during verification.
+AgentProof normally receives a project path and a natural-language task. It identifies the project,
+discovers changes against that project's approved baseline, and returns evidence for a human
+decision. An explicit patch remains available through the backend for fixed evaluation cases and
+advanced use. AgentProof does not merge branches or modify the user's source files during
+verification.
 
-## Planned workflow
+## Current workflow
 
 ```text
-Task + project path + optional trace
+       Task + project path
                  |
                  v
        Project identity registry
@@ -66,7 +67,8 @@ Task + project path + optional trace
 
 1. Candidate patches may not modify the external verification harness.
 2. Existing tests are snapshotted before a candidate patch is applied.
-3. Generated tests must compile and fail for the expected reason before they count as evidence in a later phase.
+3. Generated tests must pass static safety checks and produce the required baseline/candidate result
+   before they count as evidence.
 4. A model cannot directly produce a `VERIFIED` verdict.
 5. Timeouts, allowed commands, and workspace boundaries are deterministic.
 6. The user must approve consequential actions.
@@ -76,8 +78,8 @@ Task + project path + optional trace
 ## Phase 2 scope limit
 
 Passing the preserved baseline suite yields `INCONCLUSIVE`, not `VERIFIED`. It is evidence that the
-candidate patch did not visibly break existing checks, not proof that it achieved the task. This deliberate
-gap is what later invariant extraction and adversarial tests must close.
+candidate patch did not visibly break existing checks, not proof that it achieved the task. The Phase
+3 challenge exists to add independent evidence for this gap.
 
 ## Phase 2.5 identity and baseline boundary
 
@@ -117,4 +119,7 @@ AgentProof reports insufficient deterministic evidence instead of manufacturing 
 
 ## Cross-platform decision
 
-The product is a local web application because a browser interface is consistent across operating systems. Platform-specific process isolation will remain behind a backend adapter so the evaluation can use a documented portable mode while stronger sandbox integrations can be added later.
+The product is a local web application because one browser interface can be used across operating
+systems. The submitted version was run and measured on macOS. Linux and Windows instructions are
+provided but were not manually tested for this submission. Stronger platform-specific isolation can
+be added behind the backend later.

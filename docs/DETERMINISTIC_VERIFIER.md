@@ -7,7 +7,8 @@ evidence; it does not claim to prove semantic correctness.
 
 - A clean, local Git working tree with a readable `HEAD` commit.
 - A task description and a unified diff.
-- An optional producing-agent trace, retained only as a SHA-256 digest in the report.
+- An optional producing-agent trace in the backend request, retained only as a SHA-256 digest in the
+  report. The current simple UI does not ask for a trace.
 - Python repositories with pytest-discoverable tests or pytest configuration.
 
 The source working tree must not have tracked changes. This makes the cloned input commit and report

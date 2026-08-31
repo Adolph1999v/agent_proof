@@ -18,7 +18,8 @@ existing-test changes, and a root handoff report.
   children, and child resolution failures.
 - Corrected an initially missing import plus Ruff issues.
 - Reported 60 backend tests and 7 frontend tests passing at that checkpoint.
-- Wrote `QWEN_HANDOFF.md`.
+- Wrote a temporary root handoff report. It was removed after its useful history was summarized here
+  because its old test counts no longer described the current project.
 
 ## Review and feedback
 
@@ -35,4 +36,3 @@ existing-test changes, and a root handoff report.
 The local Qwen model contributed one bounded backend component. Codex and the human reviewed its
 scope, corrected documentation, integrated the frontend separately, and ran the complete quality
 gate. This trace demonstrates supervised delegation rather than an unreviewed model handoff.
-

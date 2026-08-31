@@ -26,6 +26,13 @@ These are planned improvements. They are not claims about the current version.
 - **Why:** Manually starting every review is easy to forget.
 - **Benefit:** Problems are found earlier with less work from the user.
 
+## Optional coding-agent trace review
+
+- **What:** Let a user attach the coding agent's action log when more context is useful.
+- **Why:** A code change shows the result, but not which commands the agent claims it ran.
+- **Benefit:** AgentProof can compare the claim with saved evidence without making trace upload part
+  of the simple default workflow.
+
 ## Git, pull-request, and coding-agent links
 
 - **What:** Connect AgentProof to Git checks, pull requests, Codex, Claude Code, and OpenCode.

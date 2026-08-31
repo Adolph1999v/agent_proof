@@ -7,5 +7,9 @@ Use this case to demonstrate a valid, behavior-neutral patch against a clean Age
 - Candidate patch: copy the complete contents of `phase2-safe-readme.patch`
 - Expected Phase 2 result: `INCONCLUSIVE`, with patch preflight and baseline execution passing
 
-`INCONCLUSIVE` is intentional: passing the existing suite is not independent proof that the task was
-completed. Challenge-test generation belongs to a later phase.
+`INCONCLUSIVE` is intentional: this fixture tests only the deterministic stage. Passing the existing
+suite is not independent proof that the task was completed. A separate Phase 3 model challenge is
+required before AgentProof can return `VERIFIED`.
+
+`phase2-safe-readme-base.md` is frozen fixture input, not current product documentation. Its wording
+is intentionally kept unchanged so the pinned patch remains reproducible.

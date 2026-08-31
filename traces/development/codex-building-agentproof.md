@@ -56,7 +56,7 @@ included.
 - Added a public-bug-derived dateutil empty-input reproduction with explicit provenance.
 - Final command: `make evaluate`.
 - Final result: 11/11 correct; baseline 63.6%, AgentProof 100%; unsafe detection 20% versus 100%;
-  correct-patch acceptance 100%; 32,938 ms; local API cost $0.
+  correct-patch acceptance 100%; 32,938 ms; no paid model service.
 - Machine-readable evidence: `evaluation/results/recorded-evaluation.json`.
 - Human control retained: AgentProof reports evidence; it does not silently apply or approve source
   changes.

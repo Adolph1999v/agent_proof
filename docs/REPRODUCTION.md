@@ -127,7 +127,8 @@ PYTHONPATH="$PWD/backend" .venv/bin/python scripts/evaluate.py --model-name qwen
 
 ## Windows
 
-Use PowerShell from the AgentProof folder.
+Use PowerShell from the AgentProof folder. These commands follow the same project tools, but Windows
+was not manually tested on the submission machine.
 
 ### Install
 
