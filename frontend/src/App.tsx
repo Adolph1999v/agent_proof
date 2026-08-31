@@ -757,7 +757,7 @@ export default function App() {
               <div className="form-footer">
                 <button disabled={!canStartVerification || verification.status === "running"} type="submit">
                   <span>
-                    {verification.status === "running" ? "Verifying…" : "Verify detected changes"}
+                    {verification.status === "running" ? "Running checks…" : "Run verification checks"}
                   </span>
                   <i aria-hidden="true">↗</i>
                 </button>

@@ -90,7 +90,7 @@ describe("independent local-model challenge", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /inspect project/i }));
     expect(await screen.findByText("1 unverified change(s)")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /verify detected changes/i }));
+    fireEvent.click(screen.getByRole("button", { name: /run verification checks/i }));
 
     expect(await screen.findByRole("button", { name: /run local challenge/i })).toBeEnabled();
     expect(

@@ -51,7 +51,7 @@ describe("AgentProof foundation", () => {
     expect(
       screen.getByRole("heading", { name: /review an agent-generated change/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /verify detected changes/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /run verification checks/i })).toBeDisabled();
 
     await waitFor(() => {
       expect(screen.getAllByText("Backend connected · v0.3.0")).toHaveLength(2);
@@ -69,7 +69,7 @@ describe("AgentProof foundation", () => {
     render(<App />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Connection refused");
-    expect(screen.getByRole("button", { name: /verify detected changes/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /run verification checks/i })).toBeDisabled();
   });
 
   it("fills the project path through the local folder picker", async () => {
@@ -135,7 +135,7 @@ describe("AgentProof foundation", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /inspect project/i }));
     expect(await screen.findByText("1 unverified change(s)")).toBeInTheDocument();
-    const submit = screen.getByRole("button", { name: /verify detected changes/i });
+    const submit = screen.getByRole("button", { name: /run verification checks/i });
     expect(submit).toBeEnabled();
     fireEvent.click(submit);
 

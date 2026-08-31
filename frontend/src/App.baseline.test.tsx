@@ -143,7 +143,7 @@ describe("approved baseline comparison", () => {
     expect(screen.getByText("After · current version")).toBeInTheDocument();
     expect(screen.getByText(/return 1/)).toHaveClass("diff-before");
     expect(screen.getByText(/return 2/)).toHaveClass("diff-after");
-    fireEvent.click(screen.getByRole("button", { name: /verify detected changes/i }));
+    fireEvent.click(screen.getByRole("button", { name: /run verification checks/i }));
 
     expect(await screen.findByText("2 change(s) · tests passed")).toBeInTheDocument();
     expect(
