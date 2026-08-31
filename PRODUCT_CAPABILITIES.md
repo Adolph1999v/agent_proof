@@ -28,7 +28,7 @@ separates future work so planned features are not presented as completed.
 - Preflight the candidate patch and reject invalid or no-op changes.
 - Freeze approved pytest tests, `conftest.py`, and pytest configuration before applying the candidate.
 - Quarantine candidate-added, modified, deleted, or reconfigured test evidence.
-- Apply only the application change when replaying unchanged approved tests.
+- Apply only the application change while replaying every frozen approved test.
 - Run bounded pytest commands with fixed environment controls, timeouts, and captured output.
 - Return `UNSAFE` immediately for concrete integrity violations or failing preserved evidence.
 - Return `INCONCLUSIVE` when available evidence cannot justify a safe/correct claim.

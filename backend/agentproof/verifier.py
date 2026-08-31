@@ -483,11 +483,10 @@ class DeterministicVerifier:
                 run_directory,
             )
 
-        quarantined = set(protected_inputs_changed)
         frozen_test_targets = [
             path
             for path in snapshot_before.files
-            if _is_pytest_target(Path(path)) and path not in quarantined
+            if _is_pytest_target(Path(path))
         ]
         if not frozen_test_targets:
             return self._write_report(
@@ -500,18 +499,15 @@ class DeterministicVerifier:
                     snapshot_before=snapshot_before,
                     snapshot_after=snapshot_after,
                     verdict="INCONCLUSIVE",
-                    summary=(
-                        "Candidate test changes were quarantined, but no unchanged frozen pytest "
-                        "module remained for deterministic execution."
-                    ),
+                    summary="No frozen baseline pytest module was available for execution.",
                     protected_inputs_changed=protected_inputs_changed,
                     changed_files=changed_files,
                     patch_check=patch_check.as_evidence(),
                     test_execution=CommandEvidence(
                         status="not_run",
                         output_preview=(
-                            "An independent challenge is required because every approved pytest "
-                            "module was changed by the candidate."
+                            "An independent challenge is required because the approved baseline "
+                            "contains no executable pytest module."
                         ),
                     ),
                 ),
@@ -533,7 +529,7 @@ class DeterministicVerifier:
             verdict = "INCONCLUSIVE"
             if protected_inputs_changed:
                 summary = (
-                    "Unchanged frozen baseline tests passed with candidate test/configuration "
+                    "Frozen baseline tests passed with candidate test/configuration "
                     "changes quarantined; an independent challenge is still required."
                 )
             else:

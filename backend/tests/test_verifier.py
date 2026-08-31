@@ -209,6 +209,38 @@ index 1111111..2222222 100644
     assert report.test_execution.status == "failed"
 
 
+def test_deleted_candidate_test_cannot_hide_an_application_regression(
+    sample_repository: Path,
+    tmp_path: Path,
+) -> None:
+    patch = """diff --git a/calculator.py b/calculator.py
+--- a/calculator.py
++++ b/calculator.py
+@@ -1,2 +1,2 @@
+ def add(left: int, right: int) -> int:
+-    return left + right
++    return 5
+diff --git a/tests/test_negative.py b/tests/test_negative.py
+deleted file mode 100644
+--- a/tests/test_negative.py
++++ /dev/null
+@@ -1,5 +0,0 @@
+-from calculator import add
+-
+-
+-def test_balanced_values() -> None:
+-    assert add(-1, 1) == 0
+"""
+    verifier = DeterministicVerifier(artifacts_root=tmp_path / "artifacts" / "runs")
+
+    report = verifier.verify(request_for(sample_repository, patch))
+
+    assert report.verdict == "UNSAFE"
+    assert report.protected_inputs_changed == ["tests/test_negative.py"]
+    assert report.test_execution.status == "failed"
+    assert "tests/test_negative.py" in report.test_execution.command
+
+
 def test_test_only_patch_is_quarantined_without_claiming_application_verification(
     sample_repository: Path,
     tmp_path: Path,

@@ -24,7 +24,7 @@ reproducible.
 6. Reject a patch that applies but leaves the clone unchanged; a no-op cannot support a verdict.
 7. Rehash and report protected inputs, then exclude all candidate test and test-configuration changes
    from the executable application patch.
-8. Apply the application-only patch to a second clean clone and run the unchanged approved pytest
+8. Apply the application-only patch to a second clean clone and run every frozen approved pytest
    modules with a fixed `python -m pytest -q` adapter and user-bounded timeout.
 9. Preserve the raw candidate patch, quarantined application patch, command output, and final report in
    `artifacts/runs/<run-id>/`, then return the same typed evidence through the API.
@@ -33,13 +33,14 @@ reproducible.
 
 | Verdict | Meaning |
 | --- | --- |
-| `UNSAFE` | Invalid or no-op application patch, or a failed unchanged frozen baseline test. |
-| `INCONCLUSIVE` | The unchanged frozen tests pass, time out, cannot run, no pytest adapter is available, or no unchanged test/application evidence remains. |
+| `UNSAFE` | Invalid or no-op application patch, or a failed frozen approved baseline test. |
+| `INCONCLUSIVE` | The frozen approved tests pass, time out, cannot run, no pytest adapter is available, or no test/application evidence remains. |
 
 Candidate-authored tests never contribute to a passing result. If a change includes application code
-and test edits, AgentProof tests only the application code against approved test modules the candidate
-did not edit. If it contains only test/configuration edits, or edits every approved pytest module, there
-is insufficient deterministic application evidence and the result is `INCONCLUSIVE`.
+and test edits, AgentProof tests only the application code against every approved baseline module,
+including the frozen original version of a modified or deleted test. If it contains only
+test/configuration edits, there is insufficient deterministic application evidence and the result is
+`INCONCLUSIVE`.
 
 No `VERIFIED` verdict exists in the deterministic stage alone. Existing tests can show a concrete
 regression, but cannot prove that an agent met the task. Phase 3 adds independently generated,

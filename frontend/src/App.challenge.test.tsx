@@ -95,7 +95,7 @@ describe("independent local-model challenge", () => {
     expect(await screen.findByRole("button", { name: /run local challenge/i })).toBeEnabled();
     expect(
       screen.getByText(
-        "2 candidate test/config change(s) quarantined; unchanged tests retained",
+        "2 candidate test/config change(s) quarantined; approved baseline tests retained",
       ),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /run local challenge/i }));

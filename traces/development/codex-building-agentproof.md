@@ -21,7 +21,7 @@ included.
   automatic change detection, current-state audits, and human baseline approval.
 - Failure observed: a README fixture read candidate-modified working content while constructing its
   supposed baseline.
-- Correction: reconstruct baseline fixture input from immutable `HEAD`; add regression coverage.
+- Correction: pin the fixture's exact base content beside its patch; add post-commit regression coverage.
 - Result: passing tests alone remained `INCONCLUSIVE`, while protected-test failure and no-op changes
   returned `UNSAFE`.
 
@@ -48,7 +48,7 @@ included.
   evidence-guided repairs after the first attempt. Token/time cost is aggregated; all attempts remain
   in the trajectory.
 - Regression command: `make check`.
-- Result at final rehearsal: 76 backend tests, 13 frontend tests, lint, type checking, and production
+- Result at final rehearsal: 77 backend tests, 13 frontend tests, lint, type checking, and production
   build passed.
 
 ## 5. Final evidence
@@ -56,7 +56,7 @@ included.
 - Added a public-bug-derived dateutil empty-input reproduction with explicit provenance.
 - Final command: `make evaluate`.
 - Final result: 11/11 correct; baseline 63.6%, AgentProof 100%; unsafe detection 20% versus 100%;
-  correct-patch acceptance 100%; 92,905 ms; local API cost $0.
+  correct-patch acceptance 100%; 32,938 ms; local API cost $0.
 - Machine-readable evidence: `evaluation/results/recorded-evaluation.json`.
 - Human control retained: AgentProof reports evidence; it does not silently apply or approve source
   changes.

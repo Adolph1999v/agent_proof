@@ -740,11 +740,11 @@ export default function App() {
                     [
                       "Test isolation",
                       report.protected_inputs_changed.length
-                        ? `${report.protected_inputs_changed.length} candidate test/config change(s) quarantined; unchanged tests retained`
+                        ? `${report.protected_inputs_changed.length} candidate test/config change(s) quarantined; approved baseline tests retained`
                         : "Frozen baseline tests remained unchanged",
                     ],
                     [
-                      "Unchanged baseline tests",
+                      "Frozen baseline tests",
                       readableCheckStatus(report.test_execution.status),
                     ],
                   ]

@@ -27,7 +27,7 @@ make setup
 make check
 ```
 
-Expected result: 76 backend tests and 13 frontend tests pass; Ruff, TypeScript, and the Vite
+Expected result: 77 backend tests and 13 frontend tests pass; Ruff, TypeScript, and the Vite
 production build pass. The exact test count may increase after the recorded submission commit, but
 every command must remain green.
 
@@ -84,7 +84,7 @@ make evaluate
 The command builds all 11 pinned repositories in temporary directories. For every case it runs:
 
 1. **Green-test baseline:** apply the full candidate patch and trust its resulting pytest suite.
-2. **AgentProof:** freeze/quarantine test inputs, run unchanged evidence, ask the local model for an
+2. **AgentProof:** freeze/quarantine test inputs, run every approved baseline test, ask the local model for an
    independent bounded challenge when necessary, execute baseline and candidate separately, and
    apply deterministic verdict rules.
 
@@ -98,9 +98,10 @@ agentproof_accuracy_percent: 100.0
 baseline_unsafe_detection_percent: 20.0
 agentproof_unsafe_detection_percent: 100.0
 agentproof_correct_patch_verification_percent: 100.0
+challenge_execution_percent: 63.6
 ```
 
-The recorded run completed in 92,905 ms and used 10,099 prompt plus 1,687 completion tokens. Run one
+The recorded run completed in 32,938 ms and used 9,467 prompt plus 1,600 completion tokens. Run one
 case for a quick review or video replay:
 
 ```bash

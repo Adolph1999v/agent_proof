@@ -13,7 +13,7 @@ command, and timeout.
 - **Green-test baseline:** apply the complete patch, including candidate-authored tests and pytest
   configuration, and accept it when the resulting suite passes.
 - **AgentProof:** preserve approved tests/configuration, quarantine candidate changes to those inputs,
-  run unchanged tests, and request one bounded local-model challenge when deterministic evidence is
+  run every frozen approved test, and request one bounded local-model challenge when deterministic evidence is
   not decisive. The model proposes a test; only executed baseline/candidate evidence chooses the
   verdict.
 
@@ -55,8 +55,8 @@ that the workflow also handles an externally documented behavior.
 | No-op patch | UNSAFE | VERIFIED | UNSAFE |
 
 The local model was `qwen2.5-coder:7b` through Ollama with temperature 0, seed 42, strict JSON schema,
-a 512-token output cap, and at most three evidence-guided attempts. The final run used 10,099 prompt
-tokens and 1,687 completion tokens, with 81,402 ms of model time and 92,905 ms total wall time. No
+a 512-token output cap, and at most three evidence-guided attempts. The final run used 9,467 prompt
+tokens and 1,600 completion tokens, with 24,684 ms of model time and 32,938 ms total wall time. No
 paid API was used.
 
 The exact machine-readable result is committed at

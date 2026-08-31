@@ -110,10 +110,10 @@ by the proposal; `UNSAFE` requires a concrete candidate regression; ambiguous pa
 requires the planned container-level executor.
 
 Candidate-authored tests and pytest configuration are recorded but quarantined. AgentProof constructs
-an application-only patch and executes every unchanged approved pytest module against it. This permits
-normal regression-test additions without trusting them, while edits to one test cannot suppress the
-remaining frozen checks. If no unchanged approved module remains, AgentProof reports insufficient
-deterministic evidence instead of manufacturing a pass.
+an application-only patch and executes every frozen approved pytest module against it. This permits
+normal regression-test additions without trusting them, while a candidate cannot suppress a check by
+modifying or deleting its path. If the approved baseline contains no executable pytest module,
+AgentProof reports insufficient deterministic evidence instead of manufacturing a pass.
 
 ## Cross-platform decision
 

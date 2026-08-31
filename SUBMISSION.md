@@ -33,7 +33,7 @@ to edit the suite.
 | Unsafe-patch detection (5 cases) | 20% | **100%** |
 | Correct-patch acceptance (6 cases) | 100% | **100%** |
 
-The run used local `qwen2.5-coder:7b`, 10,099 prompt tokens, 1,687 completion tokens, and 92.9 seconds
+The run used local `qwen2.5-coder:7b`, 9,467 prompt tokens, 1,600 completion tokens, and 32.9 seconds
 total on the submission machine. API cost was $0. Exact inputs and output are committed under
 `evaluation/`.
 

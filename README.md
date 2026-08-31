@@ -14,7 +14,7 @@ On the pinned 11-case evaluation (six correct patches, five unsafe patches, incl
 public-bug-derived case), a normal green-test baseline scored **63.6%** overall and detected **20%**
 of unsafe patches. AgentProof scored **100%** overall, detected **100%** of unsafe patches, and
 accepted **100%** of correct patches. The recorded run used local `qwen2.5-coder:7b`, completed in
-92.9 seconds, and required no paid API.
+32.9 seconds, and required no paid API.
 
 Reproduce the result with `make evaluate`; inspect the exact cases and report in
 [`evaluation/`](evaluation/). These are hackathon-scale measurements, not a claim of universal
@@ -52,7 +52,7 @@ frameworks and stronger operating-system/container isolation remain future work.
 
 ### Honest verdicts
 
-- `UNSAFE`: the patch does not apply, produces no application change, or causes an unchanged frozen
+- `UNSAFE`: the patch does not apply, produces no application change, or causes a frozen approved
   baseline test to fail. Candidate-authored test and test-configuration changes are quarantined rather
   than trusted.
 - `INCONCLUSIVE`: the baseline passes, times out, or cannot be run. Passing existing tests alone is not proof
