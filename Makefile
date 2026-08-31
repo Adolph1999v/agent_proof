@@ -19,7 +19,8 @@ help:
 	@echo "  make check          Run lint, tests, and the production build"
 	@echo "  make model-qwen     Load Qwen3.6 27B for benchmark experiments"
 	@echo "  make phase3-smoke   Run the proven Ollama/Qwen2.5-Coder smoke case"
-	@echo "  make evaluate       Run the pinned 10-case baseline comparison"
+	@echo "  make evaluate       Run the pinned 11-case baseline comparison"
+	@echo "  make evaluate CASE=<id>  Run one pinned evaluation case"
 	@echo "  make lock           Regenerate requirements.txt with uv"
 
 setup:
@@ -69,4 +70,4 @@ phase3-smoke:
 	PYTHONPATH=$(CURDIR)/backend $(PYTHON) scripts/phase3_smoke.py
 
 evaluate:
-	PYTHONPATH=$(CURDIR)/backend $(PYTHON) scripts/evaluate.py
+	PYTHONPATH=$(CURDIR)/backend $(PYTHON) scripts/evaluate.py $(if $(CASE),--case $(CASE),)

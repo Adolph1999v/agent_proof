@@ -1,4 +1,8 @@
-# Qwen Handoff — Phase 3 Reliability
+# Qwen Handoff — Historical Phase 3 Reliability Checkpoint
+
+This file preserves the Qwen/OpenCode handoff as it existed at that checkpoint. Current measured
+status is in `SUBMISSION.md`, `docs/EVALUATION.md`, and the representative Qwen trace under
+`traces/development/`.
 
 ## Objective
 
@@ -26,7 +30,7 @@ and reviewed the scoped implementation described below.
 - Final user prompt: 18,000 characters
 - Model output: 512 tokens
 - Default model timeout: 120 seconds
-- Requested JSON target: approximately 300 generated tokens
+- Requested JSON target: approximately 220 generated tokens
 - Model selection: `auto` resolves the only loaded generation model and excludes embeddings
 - Recommended Qwen context: 16,384 tokens
 

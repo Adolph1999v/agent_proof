@@ -2,7 +2,23 @@
 
 AgentProof is a local-first verification layer for AI-generated code changes.
 
-A coding agent can say that a task is complete while accidentally removing required behavior, weakening a regression test, or reporting checks it did not actually run. AgentProof will independently inspect the task, patch, original tests, and agent trace; create additional verification outside the patch's control; execute the evidence in a disposable workspace; and return a reproducible `VERIFIED` or `UNSAFE` result.
+A coding agent can say that a task is complete while accidentally removing required behavior,
+weakening a regression test, or reporting checks it did not actually run. AgentProof independently
+inspects the task, detected change, and preserved tests; creates verification outside the patch's
+control; executes the evidence in disposable workspaces; and returns `VERIFIED`, `UNSAFE`, or
+`INCONCLUSIVE` with a reproducible local report.
+
+## Measured result
+
+On the pinned 11-case evaluation (six correct patches, five unsafe patches, including one
+public-bug-derived case), a normal green-test baseline scored **63.6%** overall and detected **20%**
+of unsafe patches. AgentProof scored **100%** overall, detected **100%** of unsafe patches, and
+accepted **100%** of correct patches. The recorded run used local `qwen2.5-coder:7b`, completed in
+92.9 seconds, and required no paid API.
+
+Reproduce the result with `make evaluate`; inspect the exact cases and report in
+[`evaluation/`](evaluation/). These are hackathon-scale measurements, not a claim of universal
+correctness.
 
 ## Current status
 
@@ -104,10 +120,11 @@ make check
 See [docs/REPRODUCTION.md](docs/REPRODUCTION.md) for clean-environment and Windows commands.
 
 The normal quality gate does not download or run a model. With `qwen2.5-coder:7b` available through
-Ollama on port 11434, the transparent synthetic integration check is:
+Ollama on port 11434, the transparent integration check and recorded evaluation are:
 
 ```bash
 make phase3-smoke
+make evaluate
 ```
 
 ## Planned phases
@@ -117,15 +134,18 @@ make phase3-smoke
 3. **Baseline manager (Phase 2.5):** automatic discovery, stable project identity, current-state audit, immutable baseline approval, and isolated histories. **Implemented.**
 4. **Independent model challenge:** localhost model connection, invariant extraction, generated pytest
    challenge, baseline/candidate execution, and trajectories. **Implemented.**
-5. **Model bake-off:** compare Qwen3.6 27B Q6, Qwen3-Coder 30B, and Qwen2.5-Coder 7B on authentic patches.
-6. **Evaluation and submission:** ten or more cases, fair baseline, measured improvement, representative trajectories, and video-ready workflow.
+5. **Submission evaluation:** eleven pinned cases, a fair green-test baseline, a public-bug-derived
+   reproduction, measured improvement, and representative trajectories. **Implemented.**
+6. **Post-hackathon model bake-off:** compare Qwen3.6 27B Q6, Qwen3-Coder 30B, and additional local
+   models on a larger public corpus. The submission uses Qwen2.5-Coder 7B because it was the reliable
+   tested runtime; the failed Qwen3.6 experiment remains documented rather than hidden.
 
 ## Project layout
 
 ```text
 backend/                   FastAPI application and deterministic services
 frontend/                  React + Vite TypeScript interface
-evaluation/                Pinned authentic evaluation inputs
+evaluation/                Pinned controlled and public-bug-derived evaluation inputs/results
 traces/                    Representative development and runtime trajectories
 artifacts/                 Generated local reports and runs (not committed)
 docs/                      Architecture, evaluation, and reproduction decisions
@@ -137,4 +157,7 @@ requirements.txt           Exact Python dependency lock
 
 ## Safety boundary
 
-AgentProof will never treat an LLM's confidence as proof. Models may propose requirements or tests, but only deterministic checks executed in a disposable workspace can contribute to the verdict. Applying or exporting a change will require human approval.
+AgentProof never treats an LLM's confidence as proof. Models may propose requirements or tests, but
+only deterministic checks executed in a disposable workspace contribute to the verdict. AgentProof
+does not apply the candidate to the selected source folder, and baseline approval remains a human
+decision.

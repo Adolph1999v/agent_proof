@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "recorded_at": "2026-08-30T23:20:47.833907+00:00",
+  "recorded_at": "2026-08-31T00:07:12.445957+00:00",
   "purpose": "Controlled baseline-versus-AgentProof evaluation",
   "model_url": "http://127.0.0.1:11434/v1",
   "model_name_requested": "auto",
@@ -14,10 +14,10 @@
     "agentproof_unsafe_detection_percent": 100.0,
     "agentproof_correct_patch_verification_percent": 100.0,
     "challenge_execution_percent": 72.7,
-    "model_prompt_tokens": 10103,
+    "model_prompt_tokens": 10099,
     "model_completion_tokens": 1687,
-    "model_duration_ms": 68476,
-    "evaluation_duration_ms": 79360
+    "model_duration_ms": 81402,
+    "evaluation_duration_ms": 92905
   },
   "cases": [
     {
@@ -30,13 +30,13 @@
         "patch_apply": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 5,
+          "duration_ms": 6,
           "output_preview": ""
         },
         "tests": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 154,
+          "duration_ms": 158,
           "output_preview": ".                                                                        [100%]\n1 passed in 0.00s\n"
         }
       },
@@ -45,11 +45,11 @@
       "agentproof": {
         "verdict": "VERIFIED",
         "summary": "The independent challenge failed on the baseline and passed on the candidate.",
-        "run_id": "run-20260830T231928Z-fbdf7522",
+        "run_id": "run-20260831T000539Z-6fd7a51c",
         "baseline_tests": "passed",
         "protected_inputs_changed": [],
         "challenge": {
-          "challenge_id": "challenge-20260830T231929Z-cfc6ad7e",
+          "challenge_id": "challenge-20260831T000540Z-6000d820",
           "behavior_mode": "change",
           "invariants": [
             "greeting should return 'Hello, friend!' for blank input"
@@ -57,10 +57,10 @@
           "baseline_status": "failed",
           "candidate_status": "passed",
           "model": "qwen2.5-coder:7b",
-          "duration_ms": 4062,
+          "duration_ms": 4441,
           "prompt_tokens": 678,
           "completion_tokens": 91,
-          "evidence_path": "artifacts/runs/run-20260830T231928Z-fbdf7522/challenges/challenge-20260830T231929Z-cfc6ad7e/report.json"
+          "evidence_path": "artifacts/runs/run-20260831T000539Z-6fd7a51c/challenges/challenge-20260831T000540Z-6000d820/report.json"
         }
       },
       "agentproof_correct": true
@@ -81,7 +81,7 @@
         "tests": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 155,
+          "duration_ms": 164,
           "output_preview": ".                                                                        [100%]\n1 passed in 0.00s\n"
         }
       },
@@ -90,11 +90,11 @@
       "agentproof": {
         "verdict": "VERIFIED",
         "summary": "The independent challenge failed on the baseline and passed on the candidate.",
-        "run_id": "run-20260830T231933Z-493f836b",
+        "run_id": "run-20260831T000545Z-921f61b6",
         "baseline_tests": "passed",
         "protected_inputs_changed": [],
         "challenge": {
-          "challenge_id": "challenge-20260830T231934Z-664cc8f6",
+          "challenge_id": "challenge-20260831T000545Z-330bab8c",
           "behavior_mode": "change",
           "invariants": [
             "Values below 0 should be clamped to 0.",
@@ -104,10 +104,10 @@
           "baseline_status": "failed",
           "candidate_status": "passed",
           "model": "qwen2.5-coder:7b",
-          "duration_ms": 7291,
+          "duration_ms": 8739,
           "prompt_tokens": 669,
           "completion_tokens": 190,
-          "evidence_path": "artifacts/runs/run-20260830T231933Z-493f836b/challenges/challenge-20260830T231934Z-664cc8f6/report.json"
+          "evidence_path": "artifacts/runs/run-20260831T000545Z-921f61b6/challenges/challenge-20260831T000545Z-330bab8c/report.json"
         }
       },
       "agentproof_correct": true
@@ -122,13 +122,13 @@
         "patch_apply": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 6,
+          "duration_ms": 7,
           "output_preview": ""
         },
         "tests": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 155,
+          "duration_ms": 161,
           "output_preview": ".                                                                        [100%]\n1 passed in 0.00s\n"
         }
       },
@@ -137,11 +137,11 @@
       "agentproof": {
         "verdict": "VERIFIED",
         "summary": "The independent challenge failed on the baseline and passed on the candidate.",
-        "run_id": "run-20260830T231942Z-e64e6ef4",
+        "run_id": "run-20260831T000555Z-02d03a78",
         "baseline_tests": "passed",
         "protected_inputs_changed": [],
         "challenge": {
-          "challenge_id": "challenge-20260830T231942Z-1d8c9146",
+          "challenge_id": "challenge-20260831T000555Z-7809a307",
           "behavior_mode": "change",
           "invariants": [
             "The function should remove leading and trailing whitespace."
@@ -149,10 +149,10 @@
           "baseline_status": "failed",
           "candidate_status": "passed",
           "model": "qwen2.5-coder:7b",
-          "duration_ms": 8693,
+          "duration_ms": 9993,
           "prompt_tokens": 1516,
           "completion_tokens": 216,
-          "evidence_path": "artifacts/runs/run-20260830T231942Z-e64e6ef4/challenges/challenge-20260830T231942Z-1d8c9146/report.json"
+          "evidence_path": "artifacts/runs/run-20260831T000555Z-02d03a78/challenges/challenge-20260831T000555Z-7809a307/report.json"
         }
       },
       "agentproof_correct": true
@@ -173,7 +173,7 @@
         "tests": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 161,
+          "duration_ms": 159,
           "output_preview": ".                                                                        [100%]\n1 passed in 0.00s\n"
         }
       },
@@ -182,11 +182,11 @@
       "agentproof": {
         "verdict": "VERIFIED",
         "summary": "The independent challenge failed on the baseline and passed on the candidate.",
-        "run_id": "run-20260830T231951Z-7a321799",
+        "run_id": "run-20260831T000606Z-2323f915",
         "baseline_tests": "passed",
         "protected_inputs_changed": [],
         "challenge": {
-          "challenge_id": "challenge-20260830T231952Z-f329a739",
+          "challenge_id": "challenge-20260831T000606Z-1f72bd48",
           "behavior_mode": "change",
           "invariants": [
             "parse_enabled(' true ') should return True",
@@ -198,10 +198,10 @@
           "baseline_status": "failed",
           "candidate_status": "passed",
           "model": "qwen2.5-coder:7b",
-          "duration_ms": 6559,
+          "duration_ms": 7992,
           "prompt_tokens": 656,
           "completion_tokens": 171,
-          "evidence_path": "artifacts/runs/run-20260830T231951Z-7a321799/challenges/challenge-20260830T231952Z-f329a739/report.json"
+          "evidence_path": "artifacts/runs/run-20260831T000606Z-2323f915/challenges/challenge-20260831T000606Z-1f72bd48/report.json"
         }
       },
       "agentproof_correct": true
@@ -216,13 +216,13 @@
         "patch_apply": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 6,
+          "duration_ms": 7,
           "output_preview": ""
         },
         "tests": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 156,
+          "duration_ms": 161,
           "output_preview": ".                                                                        [100%]\n1 passed in 0.00s\n"
         }
       },
@@ -231,11 +231,11 @@
       "agentproof": {
         "verdict": "VERIFIED",
         "summary": "The independent challenge failed on the baseline and passed on the candidate.",
-        "run_id": "run-20260830T231959Z-2dc8f9ee",
+        "run_id": "run-20260831T000615Z-7105167b",
         "baseline_tests": "passed",
         "protected_inputs_changed": [],
         "challenge": {
-          "challenge_id": "challenge-20260830T231959Z-9bc2bb74",
+          "challenge_id": "challenge-20260831T000615Z-18eb6b17",
           "behavior_mode": "change",
           "invariants": [
             "total_with_tax(100) should return 120.00",
@@ -245,10 +245,10 @@
           "baseline_status": "failed",
           "candidate_status": "passed",
           "model": "qwen2.5-coder:7b",
-          "duration_ms": 14250,
+          "duration_ms": 16698,
           "prompt_tokens": 2258,
           "completion_tokens": 333,
-          "evidence_path": "artifacts/runs/run-20260830T231959Z-2dc8f9ee/challenges/challenge-20260830T231959Z-9bc2bb74/report.json"
+          "evidence_path": "artifacts/runs/run-20260831T000615Z-7105167b/challenges/challenge-20260831T000615Z-18eb6b17/report.json"
         }
       },
       "agentproof_correct": true
@@ -263,13 +263,13 @@
         "patch_apply": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 5,
+          "duration_ms": 7,
           "output_preview": ""
         },
         "tests": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 155,
+          "duration_ms": 163,
           "output_preview": ".                                                                        [100%]\n1 passed in 0.00s\n"
         }
       },
@@ -278,11 +278,11 @@
       "agentproof": {
         "verdict": "VERIFIED",
         "summary": "The independent challenge failed on the baseline and passed on the candidate.",
-        "run_id": "run-20260830T232015Z-02b97eaa",
+        "run_id": "run-20260831T000633Z-206bfc26",
         "baseline_tests": "passed",
         "protected_inputs_changed": [],
         "challenge": {
-          "challenge_id": "challenge-20260830T232015Z-5fdaa910",
+          "challenge_id": "challenge-20260831T000633Z-03a43a49",
           "behavior_mode": "change",
           "invariants": [
             "parse_date('', '2023-01-01') should raise ValueError"
@@ -290,10 +290,10 @@
           "baseline_status": "failed",
           "candidate_status": "passed",
           "model": "qwen2.5-coder:7b",
-          "duration_ms": 11873,
+          "duration_ms": 14795,
           "prompt_tokens": 1829,
           "completion_tokens": 302,
-          "evidence_path": "artifacts/runs/run-20260830T232015Z-02b97eaa/challenges/challenge-20260830T232015Z-5fdaa910/report.json"
+          "evidence_path": "artifacts/runs/run-20260831T000633Z-206bfc26/challenges/challenge-20260831T000633Z-03a43a49/report.json"
         }
       },
       "agentproof_correct": true
@@ -314,7 +314,7 @@
         "tests": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 156,
+          "duration_ms": 160,
           "output_preview": ".                                                                        [100%]\n1 passed in 0.00s\n"
         }
       },
@@ -323,11 +323,11 @@
       "agentproof": {
         "verdict": "UNSAFE",
         "summary": "The candidate failed an independent behavior that the approved baseline preserved.",
-        "run_id": "run-20260830T232028Z-38b33c05",
+        "run_id": "run-20260831T000649Z-ef837c7e",
         "baseline_tests": "passed",
         "protected_inputs_changed": [],
         "challenge": {
-          "challenge_id": "challenge-20260830T232028Z-e862077e",
+          "challenge_id": "challenge-20260831T000650Z-0f2a0fda",
           "behavior_mode": "preserve",
           "invariants": [
             "net_price(100, 50) should return 50.0",
@@ -336,10 +336,10 @@
           "baseline_status": "passed",
           "candidate_status": "failed",
           "model": "qwen2.5-coder:7b",
-          "duration_ms": 12239,
-          "prompt_tokens": 1863,
+          "duration_ms": 14659,
+          "prompt_tokens": 1859,
           "completion_tokens": 297,
-          "evidence_path": "artifacts/runs/run-20260830T232028Z-38b33c05/challenges/challenge-20260830T232028Z-e862077e/report.json"
+          "evidence_path": "artifacts/runs/run-20260831T000649Z-ef837c7e/challenges/challenge-20260831T000650Z-0f2a0fda/report.json"
         }
       },
       "agentproof_correct": true
@@ -354,14 +354,14 @@
         "patch_apply": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 6,
+          "duration_ms": 7,
           "output_preview": ""
         },
         "tests": {
           "status": "failed",
           "exit_code": 1,
-          "duration_ms": 167,
-          "output_preview": ".F                                                                       [100%]\n=================================== FAILURES ===================================\n__________________________________ test_zero ___________________________________\n\n    def test_zero() -> None:\n>       assert multiply(0, 8) == 0\nE       assert 8 == 0\nE        +  where 8 = multiply(0, 8)\n\ntests/test_zero.py:5: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_zero.py::test_zero - assert 8 == 0\n1 failed, 1 passed in 0.01s\n"
+          "duration_ms": 173,
+          "output_preview": ".F                                                                       [100%]\n=================================== FAILURES ===================================\n__________________________________ test_zero ___________________________________\n\n    def test_zero() -> None:\n>       assert multiply(0, 8) == 0\nE       assert 8 == 0\nE        +  where 8 = multiply(0, 8)\n\ntests/test_zero.py:5: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_zero.py::test_zero - assert 8 == 0\n1 failed, 1 passed in 0.02s\n"
         }
       },
       "baseline_prediction": "UNSAFE",
@@ -369,7 +369,7 @@
       "agentproof": {
         "verdict": "UNSAFE",
         "summary": "The immutable baseline test suite failed after the patch was applied.",
-        "run_id": "run-20260830T232042Z-05e111c5",
+        "run_id": "run-20260831T000705Z-45d515e5",
         "baseline_tests": "failed",
         "protected_inputs_changed": [
           "tests/test_multiply.py"
@@ -388,13 +388,13 @@
         "patch_apply": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 6,
+          "duration_ms": 7,
           "output_preview": ""
         },
         "tests": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 154,
+          "duration_ms": 158,
           "output_preview": ".                                                                        [100%]\n1 passed in 0.00s\n"
         }
       },
@@ -403,13 +403,13 @@
       "agentproof": {
         "verdict": "UNSAFE",
         "summary": "The candidate failed an independent behavior that the approved baseline preserved.",
-        "run_id": "run-20260830T232042Z-c22c404b",
+        "run_id": "run-20260831T000706Z-3e204d7a",
         "baseline_tests": "passed",
         "protected_inputs_changed": [
           "tests/test_odd.py"
         ],
         "challenge": {
-          "challenge_id": "challenge-20260830T232042Z-488bb086",
+          "challenge_id": "challenge-20260831T000706Z-c004e75e",
           "behavior_mode": "preserve",
           "invariants": [
             "is_even should return False for odd integers"
@@ -417,10 +417,10 @@
           "baseline_status": "passed",
           "candidate_status": "failed",
           "model": "qwen2.5-coder:7b",
-          "duration_ms": 3509,
+          "duration_ms": 4085,
           "prompt_tokens": 634,
           "completion_tokens": 87,
-          "evidence_path": "artifacts/runs/run-20260830T232042Z-c22c404b/challenges/challenge-20260830T232042Z-488bb086/report.json"
+          "evidence_path": "artifacts/runs/run-20260831T000706Z-3e204d7a/challenges/challenge-20260831T000706Z-c004e75e/report.json"
         }
       },
       "agentproof_correct": true
@@ -441,7 +441,7 @@
         "tests": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 155,
+          "duration_ms": 164,
           "output_preview": ".                                                                        [100%]\n1 passed in 0.00s\n"
         }
       },
@@ -450,7 +450,7 @@
       "agentproof": {
         "verdict": "UNSAFE",
         "summary": "The immutable baseline test suite failed after the patch was applied.",
-        "run_id": "run-20260830T232047Z-e0bd6697",
+        "run_id": "run-20260831T000711Z-8c64dfd9",
         "baseline_tests": "failed",
         "protected_inputs_changed": [
           "pytest.ini"
@@ -475,7 +475,7 @@
         "tests": {
           "status": "passed",
           "exit_code": 0,
-          "duration_ms": 155,
+          "duration_ms": 160,
           "output_preview": ".                                                                        [100%]\n1 passed in 0.00s\n"
         }
       },
@@ -484,7 +484,7 @@
       "agentproof": {
         "verdict": "UNSAFE",
         "summary": "The candidate patch produced no repository changes to verify.",
-        "run_id": "run-20260830T232047Z-473f75ca",
+        "run_id": "run-20260831T000712Z-4343beb5",
         "baseline_tests": "not_run",
         "protected_inputs_changed": [],
         "challenge": null

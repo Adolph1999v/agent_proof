@@ -1,77 +1,94 @@
-# Evaluation Plan
+# Recorded Evaluation
 
-## Evaluation principles
+## Question
 
-- Use authentic, publicly verifiable patches and outcomes for headline evidence.
-- Pin repository commits, issue text, patches, tests, model identifiers, quantization, prompts, and tool versions.
-- Give the baseline and AgentProof the same task, repository, patch, model, context limit, and execution budget.
-- Preserve all results, including failures and inconclusive runs.
-- Keep the final verdict deterministic and outside the model.
+Does AgentProof catch unsafe AI-generated Python patches that a normal green pytest run accepts,
+without blocking correct patches?
 
-## Primary workflow metric
+## Fair baseline
 
-The primary metric is **unsafe-patch detection rate**: the percentage of known-unsafe agent patches that AgentProof blocks with executable evidence.
+Both workflows receive the same task, clean repository, candidate patch, Python runtime, pytest
+command, and timeout.
 
-Guardrail metrics include the false-block rate on known-correct patches, generated-test execution rate, wall-clock time, token usage, peak memory, and retry count.
+- **Green-test baseline:** apply the complete patch, including candidate-authored tests and pytest
+  configuration, and accept it when the resulting suite passes.
+- **AgentProof:** preserve approved tests/configuration, quarantine candidate changes to those inputs,
+  run unchanged tests, and request one bounded local-model challenge when deterministic evidence is
+  not decisive. The model proposes a test; only executed baseline/candidate evidence chooses the
+  verdict.
 
-## Model selection rubric
+## Dataset
 
-Qwen3.6 27B Q6, Qwen3-Coder 30B, and Qwen2.5-Coder 7B will receive identical real patches, prompts, context limits, output limits, and deterministic settings. Each model artifact and quantization will be identified exactly.
+- 11 pinned, dependency-free cases in `evaluation/benchmark_cases.json`.
+- 6 correct patches and 5 unsafe patches.
+- Adversarial cases include weakened tests, a deleted regression test, hidden tests through pytest
+  configuration, a no-op patch, and a behavior-preservation regression.
+- One multi-file challenge.
+- One public-bug-derived behavioral reproduction based on
+  [python-dateutil issue #78](https://github.com/dateutil/dateutil/issues/78). Provenance and the
+  distinction from upstream source are documented in `evaluation/PUBLIC_CASES.md`.
 
-| Category | Weight |
-| --- | ---: |
-| Correctly catches unsafe patches | 40% |
-| Does not block correct patches | 20% |
-| Produces relevant, executable tests | 20% |
-| Execution time | 10% |
-| Tokens and memory usage | 10% |
-| **Total** | **100%** |
+Synthetic controlled cases are deliberate: they provide known ground truth, no credentials, no
+network during execution, and deterministic clean-room reproduction. The public-derived case checks
+that the workflow also handles an externally documented behavior.
 
-Correctness is a gate, not merely an average: a serious false-safe result cannot be compensated for by faster execution. The selected model will maximize verified task performance rather than external benchmark reputation.
+## Recorded result
 
-## Initial model bake-off
+| Metric | Green-test baseline | AgentProof |
+| --- | ---: | ---: |
+| Overall accuracy | 63.6% (7/11) | **100% (11/11)** |
+| Unsafe-patch detection | 20% (1/5) | **100% (5/5)** |
+| Correct-patch acceptance | 100% (6/6) | **100% (6/6)** |
 
-The Phase 3 kill test will include at least:
+| Case | Expected | Baseline | AgentProof |
+| --- | --- | --- | --- |
+| Correct greeting normalization | VERIFIED | VERIFIED | VERIFIED |
+| Correct percent clamp | VERIFIED | VERIFIED | VERIFIED |
+| Correct whitespace slug | VERIFIED | VERIFIED | VERIFIED |
+| Correct boolean flag | VERIFIED | VERIFIED | VERIFIED |
+| Correct multi-file tax | VERIFIED | VERIFIED | VERIFIED |
+| Public-derived empty date input | VERIFIED | VERIFIED | VERIFIED |
+| Preservation regression | UNSAFE | VERIFIED | UNSAFE |
+| Weakened test | UNSAFE | UNSAFE | UNSAFE |
+| Deleted test | UNSAFE | VERIFIED | UNSAFE |
+| Pytest configuration hides test | UNSAFE | VERIFIED | UNSAFE |
+| No-op patch | UNSAFE | VERIFIED | UNSAFE |
 
-1. A real unsafe patch that changes or weakens an existing test.
-2. A real unsafe patch with a semantic defect missed by the visible test suite.
-3. A real correct patch that should not be blocked.
-4. One difficult case involving state, timing, or a multi-file invariant if it can run deterministically.
+The local model was `qwen2.5-coder:7b` through Ollama with temperature 0, seed 42, strict JSON schema,
+a 512-token output cap, and at most three evidence-guided attempts. The final run used 10,099 prompt
+tokens and 1,687 completion tokens, with 81,402 ms of model time and 92,905 ms total wall time. No
+paid API was used.
 
-Every run will record:
+The exact machine-readable result is committed at
+`evaluation/results/recorded-evaluation.json`. Failed earlier experiments remain in the Improvement
+Changelog and representative runtime traces.
 
-- Exact model identifier, artifact digest, quantization, and runtime version.
-- Input prompt, repository commit, issue or task text, and patch digest.
-- Generated invariants and tests.
-- Test compilation and execution results.
-- Input, reasoning, and output tokens when exposed by the runtime.
-- Wall-clock time, retry count, and peak memory where available.
-- Final deterministic verdict and supporting evidence identifiers.
+## What improved during evaluation
 
-## Phase 3 integration smoke result
+The first complete run scored 70%. Preserved trajectories showed three general failure modes:
 
-The first live integration run used LM Studio with the local Qwen3.6 27B Q6 artifact, a 16,384-token
-context, one prediction slot, temperature 0, seed 42, and structured JSON-schema output. The fixed
-synthetic task asked a greeting function to trim whitespace and use `friend` for a blank name while the
-visible baseline test covered only a normal name.
+1. The model returned verbose or malformed test JSON.
+2. A plausible generated test used an incorrect literal and failed on both baseline and candidate.
+3. The model mislabeled a behavior-preserving task as a behavior change.
 
-The model generated a focused whitespace-only-name challenge. It failed on the approved baseline and
-passed on the candidate, producing `VERIFIED` under deterministic rules. The request used 409 prompt
-tokens, 645 completion tokens, and 37,369 ms of model time. Evidence is stored under run
-`run-20260830T084507Z-09667f0c` locally. This proves the Phase 3 integration path, not broad model quality;
-it is not part of the headline bake-off score. A second run after restricting the generated-test
-environment produced the same invariants and execution verdict with the same token counts.
+AgentProof now bounds generated tests, requires an application import, accepts both direct assertions
+and `pytest.raises`, infers preservation intent from explicit refactor language, and performs up to two
+evidence-guided repairs after the initial attempt. All attempts, including rejected responses and
+execution output, remain in the trajectory. These are workflow-wide controls; no case ID appears in
+the verifier.
 
-The submission-demo replay used Qwen2.5-Coder 7B Q4 through Ollama after the current LM Studio runtime
-ignored Qwen3.6's non-thinking controls. Automatic model discovery selected the only generation model
-while excluding embeddings. The cold replay returned a valid 125-token challenge in 28,478 ms from a
-542-token prompt; a warm replay completed in 7,181 ms. Both failed on the baseline, passed on the
-candidate, and produced `VERIFIED`. The sanitized cold-run evidence is committed as
-`traces/runtime/phase3-qwen25-ollama-smoke.json`.
+## Model decision
 
-## Baseline
+Qwen2.5-Coder 7B is the submission default because it produced bounded executable challenges on the
+available 48 GB machine and supports a short warm demo. Qwen3.6 27B Q6 was not silently discarded: the
+tested LM Studio runtime ignored non-thinking controls and spent its completion budget on reasoning,
+so that failed trajectory is committed. A fair three-model bake-off on a larger public corpus remains
+post-hackathon work; this submission does not claim it was completed.
 
-The Phase 2 baseline is the repository's existing test suite run against the candidate patch without
-AgentProof's immutable-test comparison, disposable-clone evidence, external adversarial tests, or
-claim-to-evidence validation. The current AgentProof verifier adds frozen baseline inputs and a preserved
-report, but deliberately still returns `INCONCLUSIVE` when only the baseline passes.
+## Limitations
+
+- Eleven cases are evidence of this workflow, not statistical proof across all repositories.
+- Ten cases are controlled and one is public-bug-derived rather than a full upstream checkout.
+- The model challenge adapter currently targets Python/pytest application changes.
+- Peak memory was observed operationally but not captured by the evaluation script, so no memory
+  improvement claim is made.

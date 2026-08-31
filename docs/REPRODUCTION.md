@@ -1,27 +1,115 @@
 # Reproduction Guide
 
-## Supported development environment
+AgentProof has two reproducible layers: deterministic quality gates that need no model, and the
+local-model evaluation used for the measured submission result.
 
-- Python 3.12, managed by `uv`
-- Node.js 22 or newer
-- npm 10 or newer
-- macOS or Linux for Makefile commands
+## Pinned submission environment
 
-Windows users can run the underlying commands from PowerShell.
+| Tool | Recorded version |
+| --- | --- |
+| Python | 3.12.13 |
+| uv | 0.11.32 |
+| Node.js | 24.18.0 (22+ supported) |
+| npm | 11.16.0 (10+ supported) |
+| Ollama client | 0.33.2 |
+| Demo model | `qwen2.5-coder:7b` |
 
-## Clean setup: macOS or Linux
+The recorded evaluation ran on an Apple M4 Max with 48 GB unified memory. It used only local
+inference, so API cost was **$0**. Faster or slower machines will change duration, not the verdict
+rules.
+
+## Clean setup
+
+From the repository root on macOS or Linux:
 
 ```bash
-git clone <repository-url>
-cd agent_proof
 make setup
 make check
+```
+
+Expected result: 76 backend tests and 13 frontend tests pass; Ruff, TypeScript, and the Vite
+production build pass. The exact test count may increase after the recorded submission commit, but
+every command must remain green.
+
+Start the local interface:
+
+```bash
 make dev
 ```
 
-`make dev` automatically selects available local ports, prints the final address, and opens it in the default browser. Confirm that the interface reports `Backend connected`.
+`make dev` selects available localhost ports, prints the URL, and opens the browser. No hosting,
+account, API key, or remote service is required.
 
-## Clean setup: Windows PowerShell
+## Local model setup
+
+Install Ollama separately, then fetch and serve the pinned model:
+
+```bash
+ollama pull qwen2.5-coder:7b
+ollama serve
+```
+
+On systems where the Ollama desktop application already runs the server, omit `ollama serve`.
+Confirm exactly one generation model is visible:
+
+```bash
+curl --max-time 5 http://127.0.0.1:11434/v1/models
+```
+
+AgentProof's `auto` mode ignores embedding/reranking models and selects the sole text-generation
+model. When multiple generation models are loaded, it fails clearly and asks for an exact model ID.
+
+## Exact smoke command
+
+```bash
+make phase3-smoke
+```
+
+Expected final fields:
+
+```text
+"challenge_verdict": "VERIFIED"
+"baseline_challenge": "failed"
+"candidate_challenge": "passed"
+```
+
+This proves the end-to-end model connection; it is not the measured comparison.
+
+## Exact baseline and AgentProof evaluation
+
+```bash
+make evaluate
+```
+
+The command builds all 11 pinned repositories in temporary directories. For every case it runs:
+
+1. **Green-test baseline:** apply the full candidate patch and trust its resulting pytest suite.
+2. **AgentProof:** freeze/quarantine test inputs, run unchanged evidence, ask the local model for an
+   independent bounded challenge when necessary, execute baseline and candidate separately, and
+   apply deterministic verdict rules.
+
+Inputs are in `evaluation/benchmark_cases.json`; the committed output is
+`evaluation/results/recorded-evaluation.json`. Expected summary:
+
+```text
+case_count: 11
+baseline_accuracy_percent: 63.6
+agentproof_accuracy_percent: 100.0
+baseline_unsafe_detection_percent: 20.0
+agentproof_unsafe_detection_percent: 100.0
+agentproof_correct_patch_verification_percent: 100.0
+```
+
+The recorded run completed in 92,905 ms and used 10,099 prompt plus 1,687 completion tokens. Run one
+case for a quick review or video replay:
+
+```bash
+make evaluate CASE=unsafe-deleted-test
+```
+
+Expected case result: `baseline=VERIFIED agentproof=UNSAFE expected=UNSAFE`.
+
+## Windows PowerShell
 
 ```powershell
 uv python install 3.12
@@ -34,10 +122,10 @@ npm test
 npm run build
 Set-Location ..
 .\.venv\Scripts\python.exe -m pytest backend\tests
-.\.venv\Scripts\python.exe -m ruff check backend
+.\.venv\Scripts\python.exe -m ruff check backend scripts
 ```
 
-Run the backend and frontend in separate PowerShell terminals:
+Run backend and frontend in separate terminals:
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn agentproof.app:app --app-dir backend --host 127.0.0.1 --port 8000
@@ -48,50 +136,19 @@ Set-Location frontend
 npm run dev -- --host 127.0.0.1
 ```
 
-## Expected deterministic result
+For model evaluation, start Ollama and run:
 
-- Backend tests pass.
-- Frontend tests pass.
-- Python lint and TypeScript checks pass.
-- Vite creates `frontend/dist`.
-- The browser interface can identify a project, run a current-state audit, approve its first baseline,
-  discover later changes automatically, and submit a local deterministic verification.
-- A supported pytest repository produces an ignored local evidence report under `artifacts/runs/`.
-- Project identities and baseline histories remain isolated under `artifacts/projects/<repository-id>/`.
-
-No model download or API key is required for setup, tests, linting, builds, project discovery, baseline
-management, or deterministic verification.
-
-## Optional Phase 3 local model
-
-AgentProof accepts an OpenAI-compatible endpoint on `127.0.0.1`, `localhost`, or `::1` only. It never
-sends repository context to a remote host. LM Studio's default endpoint is
-`http://127.0.0.1:1234/v1`; Ollama's is `http://127.0.0.1:11434/v1`.
-
-The submission demo uses the existing Qwen2.5-Coder 7B model through Ollama because it produces the
-bounded structured challenge reliably on a memory-constrained machine:
-
-```bash
-ollama run qwen2.5-coder:7b
-make phase3-smoke
+```powershell
+$env:PYTHONPATH = "$PWD\backend"
+.\.venv\Scripts\python.exe scripts\phase3_smoke.py
+.\.venv\Scripts\python.exe scripts\evaluate.py
 ```
 
-`make phase3-smoke` defaults to Ollama at `http://127.0.0.1:11434/v1` and automatic model discovery.
-AgentProof bounds the complete prompt to 18,000 characters and the model proposal to 512 tokens.
+## Safety and known scope
 
-The model remains outside the repository and is not duplicated by AgentProof. AgentProof's
-process-wide request lock prevents concurrent inference. The default `auto` selection queries the
-localhost model list, ignores embedding and reranking models, and selects the only text-generation
-model. If more than one is available, AgentProof lists their exact IDs and requires an explicit choice.
-
-Qwen3.6 27B Q6 remains a benchmark candidate and can be loaded with `make model-qwen`. Its current LM
-Studio/Qwen3.5-compatible runtime ignores per-prompt and per-request non-thinking controls, so it is not
-the submission demo default; that observed failure remains preserved as runtime evidence.
-
-The interface shows elapsed time while waiting. Use a concrete task description that names the feature
-and expected behavior; AgentProof bounds and prioritizes Python application context, asks Qwen to use
-non-thinking mode, and caps the structured proposal at 512 tokens. Failed or length-limited attempts
-are preserved under the source run's `challenges/` directory.
-
-The smoke case is synthetic and exists only to prove the end-to-end connection. Model selection claims
-must come from the pinned multi-case bake-off described in `docs/EVALUATION.md`.
+- Repository and model context remain on localhost.
+- Candidate changes run only in AgentProof-owned clones; the selected source folder is not patched.
+- Model output is untrusted, statically validated, and never directly chooses the verdict.
+- The implemented independent challenge adapter supports changed Python application files and pytest.
+- This is application-level isolation, not a hardened container or VM; use disposable repositories for
+  untrusted code. Container adapters and additional languages are future work.

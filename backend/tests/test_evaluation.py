@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from scripts.evaluate import _prepare_case
+from scripts.evaluate import DEFAULT_OUTPUT, FILTERED_OUTPUT, _prepare_case, _resolve_output
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -32,3 +32,9 @@ def test_every_evaluation_case_builds_a_clean_repo_and_nonempty_patch(tmp_path: 
         repository, patch = _prepare_case(case, tmp_path / f"case-{index}")
         assert (repository / ".git").is_dir()
         assert patch.strip()
+
+
+def test_filtered_evaluation_does_not_overwrite_recorded_result(tmp_path: Path) -> None:
+    assert _resolve_output(None, None) == DEFAULT_OUTPUT
+    assert _resolve_output(None, ["one-case"]) == FILTERED_OUTPUT
+    assert _resolve_output(tmp_path / "custom.json", ["one-case"]) == tmp_path / "custom.json"

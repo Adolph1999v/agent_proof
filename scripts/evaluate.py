@@ -19,6 +19,7 @@ from agentproof.verifier import DeterministicVerifier
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CASES = PROJECT_ROOT / "evaluation" / "benchmark_cases.json"
 DEFAULT_OUTPUT = PROJECT_ROOT / "evaluation" / "results" / "recorded-evaluation.json"
+FILTERED_OUTPUT = PROJECT_ROOT / "artifacts" / "evaluation" / "filtered-evaluation.json"
 
 
 def _run(command: list[str], *, cwd: Path | None = None, timeout: int = 60) -> dict[str, Any]:
@@ -202,10 +203,16 @@ def _percent(numerator: int, denominator: int) -> float:
     return round(100 * numerator / denominator, 1) if denominator else 0.0
 
 
+def _resolve_output(requested: Path | None, selected_cases: list[str] | None) -> Path:
+    if requested is not None:
+        return requested
+    return FILTERED_OUTPUT if selected_cases else DEFAULT_OUTPUT
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cases", type=Path, default=DEFAULT_CASES)
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--output", type=Path)
     parser.add_argument("--model-url", default="http://127.0.0.1:11434/v1")
     parser.add_argument("--model-name", default="auto")
     parser.add_argument("--case", action="append", dest="selected_cases")
@@ -298,8 +305,9 @@ def main() -> int:
         "summary": summary,
         "cases": results,
     }
-    arguments.output.parent.mkdir(parents=True, exist_ok=True)
-    arguments.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    output_path = _resolve_output(arguments.output, arguments.selected_cases)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
     return 0 if summary["agentproof_accuracy_percent"] == 100.0 else 1
 
