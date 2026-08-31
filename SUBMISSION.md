@@ -70,6 +70,8 @@ Expected evaluation headline: baseline `63.6`, AgentProof `100.0`, unsafe detect
 
 ## Evidence map
 
+- Basic baseline versus improved AgentProof: `BASELINE_TO_ADVANCED.md`
+- Agent use, feedback, retries, and human checkpoints: `AGENT_TRAJECTORIES.md`
 - Complete capabilities and boundaries: `PRODUCT_CAPABILITIES.md`
 - Planned improvements: `FUTURE_PLANS.md`
 - Evidence-backed iterations: `IMPROVEMENT_CHANGELOG.md`

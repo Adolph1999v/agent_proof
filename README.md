@@ -101,6 +101,8 @@ and common problems.
 ## Documentation
 
 - [Submission brief](SUBMISSION.md): short problem, workflow, result, and limits
+- [Basic to improved comparison](BASELINE_TO_ADVANCED.md): fair baseline, added features, and measured gain
+- [Agent trajectories](AGENT_TRAJECTORIES.md): how each agent, retry, and human checkpoint was used
 - [Product capabilities](PRODUCT_CAPABILITIES.md): what the current version can do
 - [Reproduction guide](docs/REPRODUCTION.md): exact local setup and checks
 - [Evaluation](docs/EVALUATION.md): cases, baseline, metrics, and limits
