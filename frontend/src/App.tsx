@@ -80,6 +80,11 @@ type ProjectChangePreview = ProjectChange & {
   after: FileVersionPreview;
 };
 
+type PreviewLine = {
+  text: string;
+  changed: boolean;
+};
+
 type BaselineSummary = {
   baseline_id: string;
   created_at: string;
@@ -172,6 +177,89 @@ function readablePreview(
   if (preview.state === "binary") return "Binary file preview is not shown.";
   if (preview.state === "symlink") return `Symlink → ${preview.content ?? "unknown target"}`;
   return preview.content || "(Empty file)";
+}
+
+function previewLines(content: string): string[] {
+  const lines = content.split("\n");
+  if (lines.length > 1 && lines.at(-1) === "") lines.pop();
+  return lines;
+}
+
+function fallbackLineChanges(before: string[], after: string[]): [PreviewLine[], PreviewLine[]] {
+  let prefix = 0;
+  while (prefix < before.length && prefix < after.length && before[prefix] === after[prefix]) {
+    prefix += 1;
+  }
+
+  let suffix = 0;
+  while (
+    suffix < before.length - prefix &&
+    suffix < after.length - prefix &&
+    before[before.length - suffix - 1] === after[after.length - suffix - 1]
+  ) {
+    suffix += 1;
+  }
+
+  return [
+    before.map((text, index) => ({
+      text,
+      changed: index >= prefix && index < before.length - suffix,
+    })),
+    after.map((text, index) => ({
+      text,
+      changed: index >= prefix && index < after.length - suffix,
+    })),
+  ];
+}
+
+function lineChanges(before: FileVersionPreview, after: FileVersionPreview): [PreviewLine[], PreviewLine[]] {
+  if (before.state !== "text" || after.state !== "text") {
+    const changed = before.state !== after.state || before.content !== after.content;
+    return [
+      [{ text: readablePreview(before, "before"), changed }],
+      [{ text: readablePreview(after, "after"), changed }],
+    ];
+  }
+
+  const beforeLines = previewLines(readablePreview(before, "before"));
+  const afterLines = previewLines(readablePreview(after, "after"));
+  if (beforeLines.length * afterLines.length > 250_000) {
+    return fallbackLineChanges(beforeLines, afterLines);
+  }
+
+  const lengths = Array.from({ length: beforeLines.length + 1 }, () =>
+    new Uint16Array(afterLines.length + 1),
+  );
+  for (let beforeIndex = beforeLines.length - 1; beforeIndex >= 0; beforeIndex -= 1) {
+    for (let afterIndex = afterLines.length - 1; afterIndex >= 0; afterIndex -= 1) {
+      lengths[beforeIndex][afterIndex] =
+        beforeLines[beforeIndex] === afterLines[afterIndex]
+          ? lengths[beforeIndex + 1][afterIndex + 1] + 1
+          : Math.max(lengths[beforeIndex + 1][afterIndex], lengths[beforeIndex][afterIndex + 1]);
+    }
+  }
+
+  const unchangedBefore = new Set<number>();
+  const unchangedAfter = new Set<number>();
+  let beforeIndex = 0;
+  let afterIndex = 0;
+  while (beforeIndex < beforeLines.length && afterIndex < afterLines.length) {
+    if (beforeLines[beforeIndex] === afterLines[afterIndex]) {
+      unchangedBefore.add(beforeIndex);
+      unchangedAfter.add(afterIndex);
+      beforeIndex += 1;
+      afterIndex += 1;
+    } else if (lengths[beforeIndex + 1][afterIndex] >= lengths[beforeIndex][afterIndex + 1]) {
+      beforeIndex += 1;
+    } else {
+      afterIndex += 1;
+    }
+  }
+
+  return [
+    beforeLines.map((text, index) => ({ text, changed: !unchangedBefore.has(index) })),
+    afterLines.map((text, index) => ({ text, changed: !unchangedAfter.has(index) })),
+  ];
 }
 
 export default function App() {
@@ -611,30 +699,54 @@ export default function App() {
                             </small>
                           </summary>
                           <div className="change-preview-list">
-                            {(inspectedProject.change_previews ?? []).map((preview) => (
-                              <article className="change-preview" key={`${preview.status}:${preview.path}`}>
-                                <header>
-                                  <code>
-                                    {preview.previous_path
-                                      ? `${preview.previous_path} → ${preview.path}`
-                                      : preview.path}
-                                  </code>
-                                  <span>{preview.status}</span>
-                                </header>
-                                <div className="version-grid">
-                                  <section className="version-before">
-                                    <strong>Before · approved baseline</strong>
-                                    <pre>{readablePreview(preview.before, "before")}</pre>
-                                    {preview.before.truncated ? <small>Preview truncated</small> : null}
-                                  </section>
-                                  <section className="version-after">
-                                    <strong>After · current version</strong>
-                                    <pre>{readablePreview(preview.after, "after")}</pre>
-                                    {preview.after.truncated ? <small>Preview truncated</small> : null}
-                                  </section>
-                                </div>
-                              </article>
-                            ))}
+                            {(inspectedProject.change_previews ?? []).map((preview) => {
+                              const [beforeLines, afterLines] = lineChanges(
+                                preview.before,
+                                preview.after,
+                              );
+                              return (
+                                <article className="change-preview" key={`${preview.status}:${preview.path}`}>
+                                  <header>
+                                    <code>
+                                      {preview.previous_path
+                                        ? `${preview.previous_path} → ${preview.path}`
+                                        : preview.path}
+                                    </code>
+                                    <span>{preview.status}</span>
+                                  </header>
+                                  <div className="version-grid">
+                                    <section className="version-before">
+                                      <strong>Before · approved baseline</strong>
+                                      <pre>
+                                        {beforeLines.map((line, index) => (
+                                          <span
+                                            className={`diff-line${line.changed ? " diff-before" : ""}`}
+                                            key={`before-${index}`}
+                                          >
+                                            {line.text || " "}
+                                          </span>
+                                        ))}
+                                      </pre>
+                                      {preview.before.truncated ? <small>Preview truncated</small> : null}
+                                    </section>
+                                    <section className="version-after">
+                                      <strong>After · current version</strong>
+                                      <pre>
+                                        {afterLines.map((line, index) => (
+                                          <span
+                                            className={`diff-line${line.changed ? " diff-after" : ""}`}
+                                            key={`after-${index}`}
+                                          >
+                                            {line.text || " "}
+                                          </span>
+                                        ))}
+                                      </pre>
+                                      {preview.after.truncated ? <small>Preview truncated</small> : null}
+                                    </section>
+                                  </div>
+                                </article>
+                              );
+                            })}
                           </div>
                         </details>
                       ) : null}

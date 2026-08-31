@@ -9,7 +9,8 @@ are not presented as completed features.
 - Enter the original coding task in natural language; no hand-written Git diff is required.
 - Discover added, modified, deleted, and renamed files against the correct approved baseline.
 - Show a read-only Before/After view using the approved baseline and the current project. Added,
-  changed, deleted, and renamed text files are supported; binary contents are not shown.
+  changed, deleted, and renamed text files are supported; changed lines are highlighted and binary
+  contents are not shown.
 - Retain an explicit-patch API for deterministic fixtures and advanced reproduction.
 
 ## Project identity and baseline isolation

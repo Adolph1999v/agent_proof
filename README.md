@@ -15,7 +15,7 @@ computer. No paid model service or API key is required.
 1. Choose a project folder and describe the original coding task.
 2. Inspect the project. The first inspected state can become a human-approved baseline.
 3. After the project changes, inspect it again. AgentProof compares it with that project's latest
-   approved baseline and shows a read-only Before/After view in the page.
+   approved baseline and shows a read-only, line-highlighted Before/After view in the page.
 4. Run the preserved approved tests in a disposable copy. Candidate changes to tests and pytest
    settings are not trusted.
 5. If existing evidence is not enough, run a local-model challenge against both the baseline and the
@@ -107,7 +107,6 @@ and common problems.
 - [Architecture](docs/ARCHITECTURE.md): components and trust boundaries
 - [Improvement changelog](IMPROVEMENT_CHANGELOG.md): failures, evidence, and engineering decisions
 - [Future plans](FUTURE_PLANS.md): ideas that are not yet implemented
-- [Video script](VIDEO_SCRIPT.md): five-minute demo and submission checklist
 
 ## Project layout
 

@@ -18,7 +18,8 @@ to edit the suite.
 ## Workflow
 
 1. The user selects a local project and states the original task in plain language.
-2. AgentProof identifies the correct project-specific approved baseline and discovers changes.
+2. AgentProof identifies the correct project-specific approved baseline, discovers changes, and
+   shows a line-highlighted Before/After review.
 3. It creates disposable baseline and candidate clones; the source folder is not patched.
 4. Existing tests/configuration are frozen. Candidate edits to those inputs are quarantined.
 5. Deterministic checks run. If they are not decisive, a local model proposes one bounded challenge.
@@ -77,7 +78,6 @@ Expected evaluation headline: baseline `63.6`, AgentProof `100.0`, unsafe detect
 - Public-case provenance: `evaluation/PUBLIC_CASES.md`
 - Machine-readable result: `evaluation/results/recorded-evaluation.json`
 - Representative development/runtime trajectories: `traces/`
-- Video plan and submission checklist: `VIDEO_SCRIPT.md`
 
 ## Honest limitations
 
