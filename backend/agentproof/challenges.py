@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import ast
+import builtins
 import hashlib
 import json
 import os
 import re
 import subprocess
+import symtable
 import sys
 import time
 import uuid
@@ -116,6 +118,7 @@ Rules:
 - Do not use network access, subprocesses, dynamic execution, environment variables, arbitrary
   filesystem access, monkeypatching, sleeps, randomness, skip, or xfail.
 - The test must import real application code and contain a non-trivial assertion.
+- Every name used by the test must be imported, defined, passed as an argument, or built in.
 - Select exactly one concrete behavior stated by the task. Do not add requirements or contradict it.
 - Write one short test function with one to three direct assertions. Do not use parametrization.
 - For arithmetic, calculate the expected literal carefully from the rule before writing the test.
@@ -186,6 +189,113 @@ def _parse_proposal(raw: str) -> _ChallengeProposal:
         ) from error
 
 
+def _undefined_global_names(code: str) -> set[str]:
+    symbol_table = symtable.symtable(code, CHALLENGE_TEST_NAME, "exec")
+    module_names = {
+        symbol.get_name()
+        for symbol in symbol_table.get_symbols()
+        if symbol.is_assigned() or symbol.is_imported() or symbol.is_namespace()
+    }
+    builtin_names = set(dir(builtins))
+    undefined_names: set[str] = set()
+
+    def find_undefined(scope: symtable.SymbolTable) -> None:
+        for symbol in scope.get_symbols():
+            if (
+                symbol.is_referenced()
+                and symbol.is_global()
+                and symbol.get_name() not in module_names
+                and symbol.get_name() not in builtin_names
+            ):
+                undefined_names.add(symbol.get_name())
+        for child in scope.get_children():
+            find_undefined(child)
+
+    find_undefined(symbol_table)
+    return undefined_names
+
+
+def _imported_names(node: ast.Import | ast.ImportFrom) -> set[str]:
+    if isinstance(node, ast.Import):
+        return {alias.asname or alias.name.split(".", maxsplit=1)[0] for alias in node.names}
+    return {alias.asname or alias.name for alias in node.names if alias.name != "*"}
+
+
+def _repair_support_imports(
+    code: str,
+    changed_files,
+    workspace: Path,
+) -> tuple[str, list[str]]:
+    try:
+        undefined_names = _undefined_global_names(code)
+    except SyntaxError:
+        return code, []
+    if not undefined_names:
+        return code, []
+
+    candidates: dict[str, dict[str, ast.Import | ast.ImportFrom]] = {}
+    if "pytest" in undefined_names:
+        pytest_import = ast.Import(names=[ast.alias(name="pytest")])
+        candidates["pytest"] = {"import pytest": pytest_import}
+    for changed in changed_files:
+        source_path = workspace / Path(changed.path)
+        if not source_path.is_file():
+            continue
+        try:
+            source_tree = ast.parse(source_path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeError):
+            continue
+        for node in source_tree.body:
+            if not isinstance(node, (ast.Import, ast.ImportFrom)):
+                continue
+            roots = (
+                {alias.name.split(".", maxsplit=1)[0] for alias in node.names}
+                if isinstance(node, ast.Import)
+                else {(node.module or "").split(".", maxsplit=1)[0]}
+            )
+            if (
+                not roots
+                or not roots <= sys.stdlib_module_names
+                or bool(roots & BLOCKED_IMPORT_ROOTS)
+            ):
+                continue
+            statement = ast.unparse(node)
+            for name in _imported_names(node) & undefined_names:
+                candidates.setdefault(name, {})[statement] = node
+
+    repair_nodes: list[ast.Import | ast.ImportFrom] = []
+    repair_statements: list[str] = []
+    for name in sorted(undefined_names):
+        options = candidates.get(name, {})
+        if len(options) != 1:
+            continue
+        statement, node = next(iter(options.items()))
+        if statement not in repair_statements:
+            repair_statements.append(statement)
+            repair_nodes.append(node)
+    if not repair_nodes:
+        return code, []
+
+    test_tree = ast.parse(code, filename=CHALLENGE_TEST_NAME)
+    insertion_index = 0
+    if (
+        test_tree.body
+        and isinstance(test_tree.body[0], ast.Expr)
+        and isinstance(test_tree.body[0].value, ast.Constant)
+        and isinstance(test_tree.body[0].value.value, str)
+    ):
+        insertion_index = 1
+    while (
+        insertion_index < len(test_tree.body)
+        and isinstance(test_tree.body[insertion_index], ast.ImportFrom)
+        and test_tree.body[insertion_index].module == "__future__"
+    ):
+        insertion_index += 1
+    test_tree.body[insertion_index:insertion_index] = repair_nodes
+    ast.fix_missing_locations(test_tree)
+    return f"{ast.unparse(test_tree)}\n", repair_statements
+
+
 def _validate_test(code: str) -> None:
     try:
         tree = ast.parse(code, filename=CHALLENGE_TEST_NAME)
@@ -232,6 +342,11 @@ def _validate_test(code: str) -> None:
     )
     if not (imported_roots - {"pytest"}):
         raise ChallengeError("The generated challenge must import the application code it tests.")
+
+    undefined_names = _undefined_global_names(code)
+    if undefined_names:
+        names = ", ".join(sorted(undefined_names))
+        raise ChallengeError(f"The generated challenge uses undefined name(s): {names}.")
 
     for function in test_functions:
         argument_names = {argument.arg for argument in function.args.args}
@@ -402,6 +517,17 @@ class IndependentChallengeRunner:
 
             try:
                 proposal = _parse_proposal(completion.content)
+                repaired_code, import_repairs = _repair_support_imports(
+                    proposal.test_code,
+                    application_changes,
+                    source_workspace,
+                )
+                if import_repairs:
+                    proposal = proposal.model_copy(update={"test_code": repaired_code})
+                    attempt["deterministic_repairs"] = [
+                        f"Added safe support import: {statement}"
+                        for statement in import_repairs
+                    ]
                 _validate_test(proposal.test_code)
                 effective_mode = self._effective_behavior_mode(
                     request.task,

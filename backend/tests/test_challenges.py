@@ -11,6 +11,7 @@ from agentproof.challenges import (
     SYSTEM_PROMPT,
     ChallengeError,
     IndependentChallengeRunner,
+    _repair_support_imports,
     _validate_test,
 )
 from agentproof.models import ChangedFile, IndependentChallengeRequest, VerificationRequest
@@ -353,6 +354,46 @@ def test_pytest_raises_is_accepted_as_a_nontrivial_check() -> None:
         "import pytest\nfrom service import value\n\n\ndef test_error() -> None:\n"
         "    with pytest.raises(ValueError):\n        value()\n"
     )
+
+
+def test_undefined_support_name_is_rejected_before_execution() -> None:
+    with pytest.raises(ChallengeError, match=r"undefined name\(s\): date"):
+        _validate_test(
+            "import pytest\nfrom parser import parse_date\n\n\ndef test_empty() -> None:\n"
+            "    with pytest.raises(ValueError):\n"
+            "        parse_date('', date(2023, 1, 1))\n"
+        )
+
+
+def test_imported_support_name_is_accepted() -> None:
+    _validate_test(
+        "import pytest\nfrom datetime import date\nfrom parser import parse_date\n\n\n"
+        "def test_empty() -> None:\n    with pytest.raises(ValueError):\n"
+        "        parse_date('', date(2023, 1, 1))\n"
+    )
+
+
+def test_unique_safe_stdlib_import_is_repaired_from_changed_source(tmp_path: Path) -> None:
+    (tmp_path / "parser.py").write_text(
+        "from datetime import date\n\n\ndef parse_date(value, default):\n    return default\n",
+        encoding="utf-8",
+    )
+    code = (
+        "from parser import parse_date\n\n\ndef test_empty() -> None:\n"
+        "    with pytest.raises(ValueError):\n"
+        "        parse_date('', date(2023, 1, 1))\n"
+    )
+
+    repaired, repairs = _repair_support_imports(
+        code,
+        [ChangedFile(path="parser.py", added_lines=1, deleted_lines=1, protected=False)],
+        tmp_path,
+    )
+
+    assert repairs == ["from datetime import date", "import pytest"]
+    assert "from datetime import date" in repaired
+    assert "import pytest" in repaired
+    _validate_test(repaired)
 
 
 def test_preservation_refactor_uses_task_intent_over_model_mode(tmp_path: Path) -> None:

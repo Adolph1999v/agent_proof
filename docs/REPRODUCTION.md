@@ -35,7 +35,7 @@ make check
 
 The expected result is:
 
-- 78 backend tests pass.
+- 81 backend tests pass.
 - 13 frontend tests pass.
 - Python and TypeScript checks pass.
 - The frontend build finishes successfully.

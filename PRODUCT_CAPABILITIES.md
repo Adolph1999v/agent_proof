@@ -44,6 +44,8 @@ are not presented as completed features.
 - Bound the task, changed-file count, patch, source excerpts, prompt, output tokens, and timeout.
 - Ask the model for one JSON-schema-constrained Python/pytest challenge.
 - Require an application import plus a non-trivial assertion or `pytest.raises` check.
+- Reject undefined names before execution and repair only an unambiguous missing `pytest` or safe
+  standard-library import already present in the changed application source.
 - Reject generated tests that use blocked filesystem, network, subprocess, dynamic execution,
   randomness, sleep, skip, or xfail capabilities.
 - Run the generated challenge independently on baseline and candidate workspaces.
