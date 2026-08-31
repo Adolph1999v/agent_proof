@@ -293,7 +293,9 @@ def test_official_safe_patch_fixture_remains_applicable(tmp_path: Path) -> None:
     repository = tmp_path / "official-fixture-repository"
     (repository / "tests").mkdir(parents=True)
     (repository / "README.md").write_text(
-        run_git(project_root, "show", "HEAD:README.md"),
+        (
+            project_root / "evaluation/cases/phase2-safe-readme-base.md"
+        ).read_text(encoding="utf-8"),
         encoding="utf-8",
     )
     (repository / "tests" / "test_smoke.py").write_text(
