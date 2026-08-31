@@ -8,6 +8,8 @@ are not presented as completed features.
 - Select a local project with a mouse-driven folder picker or manual path fallback.
 - Enter the original coding task in natural language; no hand-written Git diff is required.
 - Discover added, modified, deleted, and renamed files against the correct approved baseline.
+- Show a read-only Before/After view using the approved baseline and the current project. Added,
+  changed, deleted, and renamed text files are supported; binary contents are not shown.
 - Retain an explicit-patch API for deterministic fixtures and advanced reproduction.
 
 ## Project identity and baseline isolation

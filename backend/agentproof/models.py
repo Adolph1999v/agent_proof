@@ -95,6 +95,21 @@ class ProjectChange(BaseModel):
     previous_path: str | None = None
 
 
+class FileVersionPreview(BaseModel):
+    path: str
+    state: Literal["text", "missing", "binary", "symlink"]
+    content: str | None = None
+    truncated: bool = False
+
+
+class ProjectChangePreview(BaseModel):
+    path: str
+    status: Literal["added", "modified", "deleted", "renamed"]
+    previous_path: str | None = None
+    before: FileVersionPreview
+    after: FileVersionPreview
+
+
 class BaselineSummary(BaseModel):
     baseline_id: str
     repository_id: str
@@ -139,6 +154,7 @@ class ProjectInspection(BaseModel):
     baseline_count: int = Field(ge=0)
     latest_baseline: BaselineSummary | None = None
     changes: list[ProjectChange]
+    change_previews: list[ProjectChangePreview] = Field(default_factory=list)
     current_state_audit: CurrentStateAudit | None = None
 
 

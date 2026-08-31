@@ -72,6 +72,25 @@ describe("approved baseline comparison", () => {
         { path: "backend/service.py", status: "modified", previous_path: null },
         { path: "frontend/src/App.tsx", status: "modified", previous_path: null },
       ],
+      change_previews: [
+        {
+          path: "backend/service.py",
+          status: "modified",
+          previous_path: null,
+          before: {
+            path: "backend/service.py",
+            state: "text",
+            content: "def value():\n    return 1\n",
+            truncated: false,
+          },
+          after: {
+            path: "backend/service.py",
+            state: "text",
+            content: "def value():\n    return 2\n",
+            truncated: false,
+          },
+        },
+      ],
       current_state_audit: null,
     };
     const report = {
@@ -119,6 +138,11 @@ describe("approved baseline comparison", () => {
     fireEvent.click(screen.getByRole("button", { name: /inspect project/i }));
 
     expect(await screen.findByText("2 unverified change(s)")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("View before & after"));
+    expect(screen.getByText("Before · approved baseline")).toBeInTheDocument();
+    expect(screen.getByText("After · current version")).toBeInTheDocument();
+    expect(screen.getByText(/return 1/)).toBeInTheDocument();
+    expect(screen.getByText(/return 2/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /verify detected changes/i }));
 
     expect(await screen.findByText("2 change(s) · tests passed")).toBeInTheDocument();

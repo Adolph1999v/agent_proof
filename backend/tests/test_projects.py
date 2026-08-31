@@ -179,6 +179,34 @@ def test_change_discovery_reports_renames_additions_and_deletions(tmp_path: Path
     assert ("tests/test_service.py", "deleted", None) in change_values
 
 
+def test_inspection_returns_safe_before_and_after_previews(tmp_path: Path) -> None:
+    repository = create_repository(tmp_path, "change-previews")
+    store = ProjectStore(tmp_path / "state" / "projects", tmp_path / "state" / "audits")
+    initial = store.inspect(str(repository))
+    approve(store, repository, initial.current_digest)
+
+    (repository / "service.py").write_text(
+        "def value() -> int:\n    return 2\n",
+        encoding="utf-8",
+    )
+    (repository / "notes.md").write_text("new explanation\n", encoding="utf-8")
+    (repository / "image.bin").write_bytes(b"\x00\x01\x02")
+    (repository / "tests" / "test_service.py").unlink()
+
+    inspection = store.inspect(str(repository))
+    previews = {preview.path: preview for preview in inspection.change_previews}
+
+    assert previews["service.py"].before.state == "text"
+    assert previews["service.py"].before.content == "def value() -> int:\n    return 1\n"
+    assert previews["service.py"].after.content == "def value() -> int:\n    return 2\n"
+    assert previews["notes.md"].before.state == "missing"
+    assert previews["notes.md"].after.content == "new explanation\n"
+    assert previews["tests/test_service.py"].before.content is not None
+    assert previews["tests/test_service.py"].after.state == "missing"
+    assert previews["image.bin"].after.state == "binary"
+    assert previews["image.bin"].after.content is None
+
+
 def test_non_git_folder_keeps_identity_after_a_move(tmp_path: Path) -> None:
     original = tmp_path / "plain-folder"
     original.mkdir()

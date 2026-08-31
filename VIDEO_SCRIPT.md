@@ -44,7 +44,9 @@ Use this task:
 Refactor total_after_discount to make the membership rule easier to read without changing prices for any order, including large non-member orders.
 ```
 
-Click **Inspect project**, then **Verify detected changes**. Point to:
+Click **Inspect project**, then open **View before & after**. Show the changed condition and the
+deleted test without opening a terminal. Close the preview, click **Verify detected changes**, and
+point to:
 
 - `discounts.py` was modified and `tests/test_large_non_member.py` was deleted.
 - AgentProof returns `UNSAFE`.
@@ -69,8 +71,9 @@ Use this task:
 Update parse_date(text, default) so blank input raises ValueError instead of returning the default; valid ISO dates, whitespace handling, invalid-format errors, and formatting must keep working.
 ```
 
-Click **Inspect project**, then **Verify detected changes**. The existing approved tests pass, but
-AgentProof honestly returns `INCONCLUSIVE`. Click **Run local challenge** and point to:
+Click **Inspect project**, then open **View before & after**. Show the one-line blank-input behavior
+change, close the preview, and click **Verify detected changes**. The existing approved tests pass,
+but AgentProof honestly returns `INCONCLUSIVE`. Click **Run local challenge** and point to:
 
 - The four approved parser/formatting tests still pass.
 - Qwen generates the missing blank-input invariant.

@@ -68,6 +68,18 @@ type ProjectChange = {
   previous_path: string | null;
 };
 
+type FileVersionPreview = {
+  path: string;
+  state: "text" | "missing" | "binary" | "symlink";
+  content: string | null;
+  truncated: boolean;
+};
+
+type ProjectChangePreview = ProjectChange & {
+  before: FileVersionPreview;
+  after: FileVersionPreview;
+};
+
 type BaselineSummary = {
   baseline_id: string;
   created_at: string;
@@ -86,6 +98,7 @@ type ProjectInspection = {
   baseline_count: number;
   latest_baseline: BaselineSummary | null;
   changes: ProjectChange[];
+  change_previews?: ProjectChangePreview[];
   current_state_audit: {
     status: "passed" | "failed" | "timed_out" | "not_supported";
     summary: string;
@@ -145,6 +158,20 @@ function readableElapsed(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = String(totalSeconds % 60).padStart(2, "0");
   return `${minutes}:${seconds}`;
+}
+
+function readablePreview(
+  preview: FileVersionPreview,
+  version: "before" | "after",
+): string {
+  if (preview.state === "missing") {
+    return version === "before"
+      ? "Not present in the approved baseline."
+      : "Deleted from the current version.";
+  }
+  if (preview.state === "binary") return "Binary file preview is not shown.";
+  if (preview.state === "symlink") return `Symlink → ${preview.content ?? "unknown target"}`;
+  return preview.content || "(Empty file)";
 }
 
 export default function App() {
@@ -527,49 +554,91 @@ export default function App() {
                   ) : null}
 
                   {inspectedProject ? (
-                    <div className="project-summary">
-                      <div className="project-identity">
-                        <span>Recognized project</span>
-                        <strong>{inspectedProject.name}</strong>
-                        <code>{inspectedProject.repository_id.slice(0, 20)}…</code>
+                    <>
+                      <div className="project-summary">
+                        <div className="project-identity">
+                          <span>Recognized project</span>
+                          <strong>{inspectedProject.name}</strong>
+                          <code>{inspectedProject.repository_id.slice(0, 20)}…</code>
+                        </div>
+                        <div>
+                          <span>Approved history</span>
+                          <strong>
+                            {inspectedProject.latest_baseline
+                              ? `${inspectedProject.baseline_count} baseline(s)`
+                              : "First baseline needed"}
+                          </strong>
+                          <small>
+                            {inspectedProject.path_changed
+                              ? "Known project found at a new path"
+                              : `${inspectedProject.current_file_count} files inventoried`}
+                          </small>
+                        </div>
+                        <div>
+                          <span>Detected state</span>
+                          <strong>{detectedStateLabel}</strong>
+                          <small>{detectedStateDetail}</small>
+                        </div>
+                        {(!inspectedProject.latest_baseline ||
+                          (challengeReport?.verdict === "VERIFIED" &&
+                            report?.change_source === "approved_baseline")) ? (
+                          <button
+                            className="approve-baseline"
+                            disabled={
+                              !task.trim() ||
+                              inspectedProject.current_state_audit?.status === "failed" ||
+                              inspectedProject.current_state_audit?.status === "timed_out"
+                            }
+                            onClick={approveBaseline}
+                            type="button"
+                          >
+                            {inspectedProject.latest_baseline
+                              ? "Approve as next baseline"
+                              : "Approve first baseline"}
+                          </button>
+                        ) : null}
                       </div>
-                      <div>
-                        <span>Approved history</span>
-                        <strong>
-                          {inspectedProject.latest_baseline
-                            ? `${inspectedProject.baseline_count} baseline(s)`
-                            : "First baseline needed"}
-                        </strong>
-                        <small>
-                          {inspectedProject.path_changed
-                            ? "Known project found at a new path"
-                            : `${inspectedProject.current_file_count} files inventoried`}
-                        </small>
-                      </div>
-                      <div>
-                        <span>Detected state</span>
-                        <strong>{detectedStateLabel}</strong>
-                        <small>{detectedStateDetail}</small>
-                      </div>
-                      {(!inspectedProject.latest_baseline ||
-                        (challengeReport?.verdict === "VERIFIED" &&
-                          report?.change_source === "approved_baseline")) ? (
-                        <button
-                          className="approve-baseline"
-                          disabled={
-                            !task.trim() ||
-                            inspectedProject.current_state_audit?.status === "failed" ||
-                            inspectedProject.current_state_audit?.status === "timed_out"
-                          }
-                          onClick={approveBaseline}
-                          type="button"
-                        >
-                          {inspectedProject.latest_baseline
-                            ? "Approve as next baseline"
-                            : "Approve first baseline"}
-                        </button>
+
+                      {(inspectedProject.change_previews ?? []).length ? (
+                        <details className="change-viewer">
+                          <summary>
+                            <span>View before &amp; after</span>
+                            <small>
+                              {(inspectedProject.change_previews ?? []).length <
+                              inspectedProject.changes.length
+                                ? `${(inspectedProject.change_previews ?? []).length} of ${inspectedProject.changes.length} file previews`
+                                : `${(inspectedProject.change_previews ?? []).length} file preview(s)`}
+                            </small>
+                          </summary>
+                          <div className="change-preview-list">
+                            {(inspectedProject.change_previews ?? []).map((preview) => (
+                              <article className="change-preview" key={`${preview.status}:${preview.path}`}>
+                                <header>
+                                  <code>
+                                    {preview.previous_path
+                                      ? `${preview.previous_path} → ${preview.path}`
+                                      : preview.path}
+                                  </code>
+                                  <span>{preview.status}</span>
+                                </header>
+                                <div className="version-grid">
+                                  <section className="version-before">
+                                    <strong>Before · approved baseline</strong>
+                                    <pre>{readablePreview(preview.before, "before")}</pre>
+                                    {preview.before.truncated ? <small>Preview truncated</small> : null}
+                                  </section>
+                                  <section className="version-after">
+                                    <strong>After · current version</strong>
+                                    <pre>{readablePreview(preview.after, "after")}</pre>
+                                    {preview.after.truncated ? <small>Preview truncated</small> : null}
+                                  </section>
+                                </div>
+                              </article>
+                            ))}
+                          </div>
+                        </details>
                       ) : null}
-                    </div>
+                    </>
                   ) : null}
               </section>
 

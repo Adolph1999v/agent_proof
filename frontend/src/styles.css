@@ -558,6 +558,126 @@ textarea {
   margin: 11px;
 }
 
+.change-viewer {
+  border-top: 1px solid var(--line);
+  background: rgba(10, 12, 10, 0.96);
+}
+
+.change-viewer > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 13px;
+  color: var(--accent);
+  cursor: pointer;
+  list-style: none;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.change-viewer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.change-viewer > summary::after {
+  content: "+";
+  color: var(--faint);
+  font: 600 14px var(--mono);
+}
+
+.change-viewer[open] > summary::after {
+  content: "−";
+}
+
+.change-viewer > summary small {
+  margin-left: auto;
+  color: var(--faint);
+  font: 500 8px var(--mono);
+}
+
+.change-preview-list {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+.change-preview {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #0c0e0c;
+}
+
+.change-preview > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--line);
+}
+
+.change-preview > header code {
+  overflow: hidden;
+  color: #dfe3da;
+  font: 600 9px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-preview > header span {
+  color: var(--accent);
+  font: 650 8px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.version-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.version-grid > section {
+  display: grid;
+  min-width: 0;
+  background: rgba(14, 16, 14, 0.96);
+}
+
+.version-grid > section + section {
+  border-left: 1px solid var(--line);
+}
+
+.version-grid strong,
+.version-grid small {
+  padding: 8px 10px;
+  color: var(--faint);
+  font: 600 8px var(--mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.version-before strong {
+  color: #d89a7c;
+}
+
+.version-after strong {
+  color: var(--accent);
+}
+
+.version-grid pre {
+  min-height: 92px;
+  max-height: 250px;
+  margin: 0;
+  overflow: auto;
+  padding: 11px;
+  color: #cfd4c9;
+  background: rgba(5, 6, 5, 0.54);
+  font: 500 9px/1.62 var(--mono);
+  tab-size: 2;
+  white-space: pre;
+}
+
 input::placeholder,
 textarea::placeholder {
   color: #74786f;
@@ -1267,6 +1387,15 @@ footer {
 
   .project-summary {
     grid-template-columns: 1fr;
+  }
+
+  .version-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .version-grid > section + section {
+    border-top: 1px solid var(--line);
+    border-left: 0;
   }
 
   .review-heading {

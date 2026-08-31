@@ -26,7 +26,9 @@ from agentproof.models import (
     BaselineSummary,
     CommandEvidence,
     CurrentStateAudit,
+    FileVersionPreview,
     ProjectChange,
+    ProjectChangePreview,
     ProjectInspection,
     VerificationReport,
     VerificationRequest,
@@ -41,6 +43,8 @@ BASELINE_ID_PATTERN = re.compile(r"baseline-\d{8}T\d{6}Z-[0-9a-f]{8}")
 MAX_FILE_BYTES = 25 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 250 * 1024 * 1024
 MAX_OUTPUT_CHARS = 12_000
+MAX_CHANGE_PREVIEWS = 12
+MAX_PREVIEW_BYTES = 20_000
 EXCLUDED_DIRECTORIES = {
     ".agentproof",
     ".git",
@@ -111,7 +115,15 @@ class ProjectStore:
             self._ensure_baseline_compatible(root, record, baseline)
         changes = self._compare(baseline.entries, snapshot.entries) if baseline else []
         audit = self._audit_current_state(root, snapshot, timeout_seconds)
-        return self._inspection(record, snapshot, baseline, changes, audit, path_changed)
+        return self._inspection(
+            root,
+            record,
+            snapshot,
+            baseline,
+            changes,
+            audit,
+            path_changed,
+        )
 
     def approve_baseline(self, request: BaselineApprovalRequest) -> BaselineApprovalResponse:
         root, record, path_changed = self._resolve_project(
@@ -158,6 +170,7 @@ class ProjectStore:
         record.latest_baseline_id = baseline_id
         self._save_record(record)
         project = self._inspection(
+            root,
             record,
             snapshot,
             manifest,
@@ -447,6 +460,98 @@ class ProjectStore:
         )
         return sorted(changes, key=lambda change: (change.path, change.status))
 
+    def _change_previews(
+        self,
+        root: Path,
+        repository_id: str,
+        baseline: _BaselineManifest,
+        current: _Snapshot,
+        changes: list[ProjectChange],
+    ) -> list[ProjectChangePreview]:
+        previews: list[ProjectChangePreview] = []
+        for change in changes[:MAX_CHANGE_PREVIEWS]:
+            before_path = change.previous_path or change.path
+            previews.append(
+                ProjectChangePreview(
+                    path=change.path,
+                    status=change.status,
+                    previous_path=change.previous_path,
+                    before=self._baseline_file_preview(
+                        repository_id,
+                        before_path,
+                        baseline.entries.get(before_path),
+                    ),
+                    after=self._current_file_preview(
+                        root,
+                        change.path,
+                        current.entries.get(change.path),
+                    ),
+                )
+            )
+        return previews
+
+    def _baseline_file_preview(
+        self,
+        repository_id: str,
+        relative_path: str,
+        entry: _SnapshotEntry | None,
+    ) -> FileVersionPreview:
+        if entry is None:
+            return FileVersionPreview(path=relative_path, state="missing")
+        object_path = self._project_directory(repository_id) / "objects" / entry.sha256
+        if not object_path.is_file() or self._sha256_file(object_path) != entry.sha256:
+            raise ProjectInputError("A baseline preview object is missing or corrupted.")
+        return self._file_preview(relative_path, entry, object_path.read_bytes())
+
+    def _current_file_preview(
+        self,
+        root: Path,
+        relative_path: str,
+        entry: _SnapshotEntry | None,
+    ) -> FileVersionPreview:
+        if entry is None:
+            return FileVersionPreview(path=relative_path, state="missing")
+        path = root / self._safe_relative_path(relative_path)
+        if entry.kind == "symlink":
+            if not path.is_symlink():
+                raise ProjectInputError("The project changed while preparing its preview.")
+            data = os.readlink(path).encode("utf-8")
+        else:
+            if not path.is_file():
+                raise ProjectInputError("The project changed while preparing its preview.")
+            data = path.read_bytes()
+        if hashlib.sha256(data).hexdigest() != entry.sha256:
+            raise ProjectInputError("The project changed while preparing its preview.")
+        return self._file_preview(relative_path, entry, data)
+
+    @staticmethod
+    def _file_preview(
+        relative_path: str,
+        entry: _SnapshotEntry,
+        data: bytes,
+    ) -> FileVersionPreview:
+        if entry.kind == "symlink":
+            return FileVersionPreview(
+                path=relative_path,
+                state="symlink",
+                content=data.decode("utf-8", errors="replace"),
+            )
+        if b"\0" in data:
+            return FileVersionPreview(path=relative_path, state="binary")
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            return FileVersionPreview(path=relative_path, state="binary")
+        truncated = len(data) > MAX_PREVIEW_BYTES
+        if truncated:
+            text = data[:MAX_PREVIEW_BYTES].decode("utf-8", errors="ignore")
+        return FileVersionPreview(
+            path=relative_path,
+            state="text",
+            content=text,
+            truncated=truncated,
+        )
+
     def _audit_current_state(
         self,
         root: Path,
@@ -495,6 +600,7 @@ class ProjectStore:
 
     def _inspection(
         self,
+        root: Path,
         record: _ProjectRecord,
         snapshot: _Snapshot,
         baseline: _BaselineManifest | None,
@@ -513,6 +619,17 @@ class ProjectStore:
             baseline_count=len(record.baseline_ids),
             latest_baseline=baseline.summary if baseline else None,
             changes=changes,
+            change_previews=(
+                self._change_previews(
+                    root,
+                    record.repository_id,
+                    baseline,
+                    snapshot,
+                    changes,
+                )
+                if baseline
+                else []
+            ),
             current_state_audit=audit,
         )
 
