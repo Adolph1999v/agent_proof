@@ -188,7 +188,7 @@ make phase3-smoke
 make evaluate
 ```
 
-Expected project check: 81 backend tests and 13 frontend tests pass, followed by a successful
+Expected project check: 82 backend tests and 13 frontend tests pass, followed by a successful
 frontend build.
 
 The recorded 11-case evaluation result is:
@@ -200,6 +200,27 @@ The recorded 11-case evaluation result is:
 
 Model time and token use can change with the computer. The recorded result is saved in
 `evaluation/results/recorded-evaluation.json`.
+
+## Clean-copy relocation check (23 September 2026)
+
+We copied the application source and setup files, fresh Git copies of both demo projects, and their
+two patch files into a temporary folder whose name contained spaces. The copy did not include a virtual
+environment, package cache, frontend build, `.env` file, generated evidence, or model files.
+
+In that copy, `make setup` installed Python 3.12.13 inside the project, 29 pinned Python packages,
+and the frontend packages. `make check` passed Python lint, TypeScript checks, 82 backend tests,
+13 frontend tests, and the production build. The frontend lockfile did not change. First-time setup
+needs network access to download Python and packages. npm reported two moderate dependency
+advisories; they did not fail setup or the checks.
+
+The local app started. Its backend health endpoint and frontend page responded successfully. The
+directory-browsing service used by the folder picker listed both demo projects, and inspecting each
+produced a passing current-state audit.
+Generated audit files stayed under `artifacts/`, which Git ignores. No old Desktop path appeared in
+the copied source or demo files.
+
+This check did not run a live model challenge. To check that optional step, start Ollama with
+`qwen2.5-coder:7b` and follow the two browser demos above.
 
 ## Windows notes
 

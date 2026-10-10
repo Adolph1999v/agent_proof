@@ -109,6 +109,8 @@ and common problems.
 - [Architecture](docs/ARCHITECTURE.md): components and trust boundaries
 - [Improvement changelog](docs/IMPROVEMENT_CHANGELOG.md): failures, evidence, and engineering decisions
 - [Future plans](docs/FUTURE_PLANS.md): ideas that are not yet implemented
+- [Portable baseline design](docs/PORTABLE_BASELINES.md): proposed backup and restore workflow
+- [Execution isolation assessment](docs/EXECUTION_ISOLATION.md): current limits and a safer runner design
 
 ## Project layout
 
