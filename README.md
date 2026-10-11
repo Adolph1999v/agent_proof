@@ -64,6 +64,7 @@ See [FUTURE_PLANS.md](docs/FUTURE_PLANS.md) for improvements that are not part o
 
 ## Requirements
 
+- Git
 - `uv` 0.11 or newer
 - Node.js 22 or newer
 - npm 10 or newer
@@ -76,17 +77,25 @@ Python 3.12 and Python packages are installed inside this project. Frontend pack
 
 ## Quick start on macOS or Linux
 
-From the AgentProof folder:
+Clone the repository, then install and check the application:
 
 ```bash
+git clone https://github.com/Adolph1999v/agent_proof.git
+cd agent_proof
 make setup
 make check
-ollama pull qwen2.5-coder:7b
 make dev
 ```
 
-Start the Ollama app or `ollama serve` before running a local-model challenge. `make dev` chooses free
-local ports and opens AgentProof in the default browser.
+If you already have the project folder, run the last three commands from that folder. `make check`
+does not need a model. `make dev` chooses free local ports and opens AgentProof in the default browser.
+
+To use Step 2's independent challenge, download the tested local model and start the Ollama app (or
+run `ollama serve` in another terminal):
+
+```bash
+ollama pull qwen2.5-coder:7b
+```
 
 To repeat the local-model smoke test and recorded evaluation:
 
