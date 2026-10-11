@@ -1,7 +1,10 @@
 # Reproduction Guide
 
-This guide runs AgentProof through the same browser workflow shown in the video. The submitted folder
-contains `agent_proof` and `ui_demo_cases`. Keep them next to each other after extracting the ZIP.
+This guide runs AgentProof through the same browser workflow shown in the video. A GitHub clone
+contains the application, tests, and recorded evaluation; it can run setup, checks, and the app.
+The original submission ZIP also contains `ui_demo_cases` next to `agent_proof`. The two UI demos in
+steps 4 and 5 need that separate folder and its patch files; they are not included in the GitHub
+repository.
 
 AgentProof uses a local model through Ollama. It does not need a paid API key.
 
@@ -62,6 +65,9 @@ The page opens automatically. If it does not, open the local address printed in 
 
 This case is based on the empty-input behavior reported in python-dateutil issue #78. It contains no
 copied upstream source code.
+
+Use a fresh copy of `ui_demo_cases` if you want to keep edits in your existing demo projects. The
+`git restore` commands below discard changes to tracked files in the selected demo project.
 
 ### Create the first approved baseline
 
