@@ -1,0 +1,2 @@
+# A blank context line in a unified patch is represented by one space.
+demo_fixtures/changes/*.patch -whitespace

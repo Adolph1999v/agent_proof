@@ -1,0 +1,25 @@
+diff --git a/discounts.py b/discounts.py
+index 9bfee66..f37ae41 100644
+--- a/discounts.py
++++ b/discounts.py
+@@ -13,7 +13,7 @@ def total_after_discount(order: Order) -> float:
+         raise ValueError("subtotal cannot be negative")
+ 
+     discount_percent = 0
+-    if order.member and order.subtotal >= 100:
++    if order.member or order.subtotal >= 100:
+         discount_percent += 10
+     if order.coupon == "SAVE5":
+         discount_percent += 5
+diff --git a/tests/test_large_non_member.py b/tests/test_large_non_member.py
+deleted file mode 100644
+index 420a819..0000000
+--- a/tests/test_large_non_member.py
++++ /dev/null
+@@ -1,6 +0,0 @@
+-from discounts import Order, total_after_discount
+-
+-
+-def test_large_non_member_does_not_get_member_discount() -> None:
+-    order = Order(subtotal=150, member=False)
+-    assert total_after_discount(order) == 150

@@ -1,0 +1,13 @@
+diff --git a/parser.py b/parser.py
+index ed9a85d..bb0d163 100644
+--- a/parser.py
++++ b/parser.py
+@@ -4,7 +4,7 @@ from datetime import date
+ def parse_date(text: str, default: date) -> date:
+     normalized = text.strip()
+     if not normalized:
+-        return default
++        raise ValueError("empty date input")
+ 
+     parts = normalized.split("-")
+     if len(parts) != 3:
