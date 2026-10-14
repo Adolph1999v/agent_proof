@@ -104,6 +104,10 @@ make phase3-smoke
 make evaluate
 ```
 
+To try the two browser demos from a GitHub clone, run `make demo-setup` once. It creates fresh Git
+projects under ignored `artifacts/ui_demo_cases/` and leaves existing demo folders alone. Follow the
+[reproduction guide](docs/REPRODUCTION.md) to inspect, change, and verify them.
+
 See [docs/REPRODUCTION.md](docs/REPRODUCTION.md) for full commands, expected results, Windows steps,
 and common problems.
 
@@ -127,6 +131,7 @@ and common problems.
 backend/                   FastAPI application and verification services
 frontend/                  React and Vite interface
 evaluation/                Pinned evaluation cases and recorded result
+demo_fixtures/             Clean UI demo inputs and reusable candidate patches
 traces/                    Selected development and runtime evidence
 artifacts/                 Local generated reports; not committed by default
 docs/                      Technical and reproduction documents

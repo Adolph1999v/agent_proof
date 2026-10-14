@@ -1,10 +1,9 @@
 # Reproduction Guide
 
-This guide runs AgentProof through the same browser workflow shown in the video. A GitHub clone
-contains the application, tests, and recorded evaluation; it can run setup, checks, and the app.
-The original submission ZIP also contains `ui_demo_cases` next to `agent_proof`. The two UI demos in
-steps 4 and 5 need that separate folder and its patch files; they are not included in the GitHub
-repository.
+This guide runs AgentProof through the same browser workflow shown in the video. The GitHub clone
+includes clean inputs and patches for both UI demos. A setup command creates separate demo Git
+repositories under ignored `artifacts/`; it leaves any older demo folders from the submission ZIP
+untouched.
 
 AgentProof uses a local model through Ollama. It does not need a paid API key.
 
@@ -66,20 +65,20 @@ The page opens automatically. If it does not, open the local address printed in 
 This case is based on the empty-input behavior reported in python-dateutil issue #78. It contains no
 copied upstream source code.
 
-Use a fresh copy of `ui_demo_cases` if you want to keep edits in your existing demo projects. The
-`git restore` commands below discard changes to tracked files in the selected demo project.
+From the `agent_proof` folder, create both clean demo repositories once:
+
+```bash
+make demo-setup
+```
+
+This refuses to overwrite an existing `artifacts/ui_demo_cases` folder. The generated folders and
+their later changes are ignored by the main Git repository.
 
 ### Create the first approved baseline
 
-Open another terminal in the folder that contains both submitted folders and run:
-
-```bash
-git -C ui_demo_cases/public_dateutil_empty_input restore --worktree .
-```
-
 In AgentProof:
 
-1. Click **Browse** and select `ui_demo_cases/public_dateutil_empty_input`.
+1. Click **Browse** and select `agent_proof/artifacts/ui_demo_cases/public_dateutil_empty_input`.
 2. Enter this original task:
 
 ```text
@@ -94,10 +93,10 @@ This approval is only needed once on a new AgentProof installation.
 
 ### Apply and verify the change
 
-Keep AgentProof running. From the folder containing both submitted folders, run:
+Keep AgentProof running. From the `agent_proof` folder, run:
 
 ```bash
-git -C ui_demo_cases/public_dateutil_empty_input apply ../changes/public_dateutil_empty_input.patch
+git -C artifacts/ui_demo_cases/public_dateutil_empty_input apply ../changes/public_dateutil_empty_input.patch
 ```
 
 Back in AgentProof:
@@ -129,15 +128,9 @@ Do not click **Approve as next baseline** if you want to repeat the same demo.
 
 ### Create the first approved baseline
 
-From the folder containing both submitted folders:
-
-```bash
-git -C ui_demo_cases/unsafe_deleted_test restore --worktree .
-```
-
 In AgentProof:
 
-1. Select `ui_demo_cases/unsafe_deleted_test`.
+1. Select `agent_proof/artifacts/ui_demo_cases/unsafe_deleted_test`.
 2. Enter this original task:
 
 ```text
@@ -149,10 +142,10 @@ Refactor total_after_discount to make the membership rule easier to read without
 
 ### Apply and verify the unsafe change
 
-Keep AgentProof running. From the folder containing both submitted folders:
+Keep AgentProof running. From the `agent_proof` folder:
 
 ```bash
-git -C ui_demo_cases/unsafe_deleted_test apply ../changes/unsafe_deleted_test.patch
+git -C artifacts/ui_demo_cases/unsafe_deleted_test apply ../changes/unsafe_deleted_test.patch
 ```
 
 Back in AgentProof:
@@ -172,15 +165,18 @@ Expected result:
 
 ## Repeat either demo
 
-Restore the selected demo to its old version, then apply its change again after inspection:
+From the `agent_proof` folder, restore a generated demo to its old version, then apply its change
+again after inspection. These commands discard changes to tracked files in the generated demos:
 
 ```bash
-git -C ui_demo_cases/public_dateutil_empty_input restore --worktree .
-git -C ui_demo_cases/unsafe_deleted_test restore --worktree .
+git -C artifacts/ui_demo_cases/public_dateutil_empty_input restore --worktree .
+git -C artifacts/ui_demo_cases/unsafe_deleted_test restore --worktree .
 ```
 
 If the changed state was already approved, AgentProof will correctly report that it matches the
-latest approved baseline. Use a fresh extracted copy for the full first-baseline demonstration.
+latest approved baseline. For a fresh first-baseline demonstration, create another set with
+`.venv/bin/python scripts/prepare_ui_demos.py --output artifacts/ui_demo_cases_2` and select those
+new folders.
 
 ## Optional developer checks
 
@@ -194,7 +190,7 @@ make phase3-smoke
 make evaluate
 ```
 
-Expected project check: 82 backend tests and 13 frontend tests pass, followed by a successful
+Expected project check: 86 backend tests and 13 frontend tests pass, followed by a successful
 frontend build.
 
 The recorded 11-case evaluation result is:
@@ -240,6 +236,7 @@ uv pip install --python .venv\Scripts\python.exe -r requirements.txt
 Set-Location frontend
 npm install
 Set-Location ..
+.\.venv\Scripts\python.exe scripts\prepare_ui_demos.py
 ```
 
 Start the backend and frontend in separate PowerShell windows:
