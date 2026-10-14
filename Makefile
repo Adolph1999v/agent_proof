@@ -7,7 +7,7 @@ UV_ENV := UV_CACHE_DIR="$(CURDIR)/.uv-cache" UV_PYTHON_INSTALL_DIR="$(CURDIR)/.p
 BACKEND_PORT ?= 8000
 FRONTEND_PORT ?= 5173
 
-.PHONY: help setup lock dev dev-backend dev-frontend test test-backend test-frontend lint lint-backend lint-frontend build check model-qwen phase3-smoke evaluate
+.PHONY: help setup lock dev dev-backend dev-frontend test test-backend test-frontend lint lint-backend lint-frontend build check model-qwen phase3-smoke evaluate demo-setup
 
 help:
 	@echo "AgentProof commands"
@@ -17,6 +17,7 @@ help:
 	@echo "  make lint           Run Python linting and frontend type checks"
 	@echo "  make build          Build the frontend production bundle"
 	@echo "  make check          Run lint, tests, and the production build"
+	@echo "  make demo-setup     Create fresh, local UI demo repositories"
 	@echo "  make model-qwen     Load Qwen3.6 27B for benchmark experiments"
 	@echo "  make phase3-smoke   Run the proven Ollama/Qwen2.5-Coder smoke case"
 	@echo "  make evaluate       Run the pinned 11-case baseline comparison"
@@ -61,6 +62,9 @@ build:
 	cd frontend && npm run build
 
 check: lint test build
+
+demo-setup:
+	$(PYTHON) scripts/prepare_ui_demos.py
 
 model-qwen:
 	lms server start --port 1234 --bind 127.0.0.1
