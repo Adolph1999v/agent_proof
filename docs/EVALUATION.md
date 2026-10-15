@@ -63,6 +63,10 @@ The exact machine-readable result is committed at
 `evaluation/results/recorded-evaluation.json`. Failed earlier experiments remain in the Improvement
 Changelog and representative runtime traces.
 
+Running `make evaluate` saves a new report at `artifacts/evaluation/latest-evaluation.json`, which
+Git ignores. `make evaluate CASE=<id>` uses `artifacts/evaluation/filtered-evaluation.json`.
+Neither command rewrites the committed result.
+
 ## What improved during evaluation
 
 The first complete run scored 70%. Preserved trajectories showed three general failure modes:

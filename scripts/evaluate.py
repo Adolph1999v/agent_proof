@@ -18,7 +18,8 @@ from agentproof.verifier import DeterministicVerifier
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CASES = PROJECT_ROOT / "evaluation" / "benchmark_cases.json"
-DEFAULT_OUTPUT = PROJECT_ROOT / "evaluation" / "results" / "recorded-evaluation.json"
+RECORDED_OUTPUT = PROJECT_ROOT / "evaluation" / "results" / "recorded-evaluation.json"
+DEFAULT_OUTPUT = PROJECT_ROOT / "artifacts" / "evaluation" / "latest-evaluation.json"
 FILTERED_OUTPUT = PROJECT_ROOT / "artifacts" / "evaluation" / "filtered-evaluation.json"
 
 
@@ -205,6 +206,8 @@ def _percent(numerator: int, denominator: int) -> float:
 
 def _resolve_output(requested: Path | None, selected_cases: list[str] | None) -> Path:
     if requested is not None:
+        if requested.resolve() == RECORDED_OUTPUT.resolve():
+            raise ValueError("The committed evaluation record cannot be overwritten.")
         return requested
     return FILTERED_OUTPUT if selected_cases else DEFAULT_OUTPUT
 
@@ -217,6 +220,10 @@ def main() -> int:
     parser.add_argument("--model-name", default="auto")
     parser.add_argument("--case", action="append", dest="selected_cases")
     arguments = parser.parse_args()
+    try:
+        output_path = _resolve_output(arguments.output, arguments.selected_cases)
+    except ValueError as error:
+        parser.error(str(error))
 
     manifest = json.loads(arguments.cases.read_text(encoding="utf-8"))
     cases = manifest["cases"]
@@ -305,7 +312,6 @@ def main() -> int:
         "summary": summary,
         "cases": results,
     }
-    output_path = _resolve_output(arguments.output, arguments.selected_cases)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))

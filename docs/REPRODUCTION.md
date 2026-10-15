@@ -200,8 +200,10 @@ The recorded 11-case evaluation result is:
 - Normal unsafe-change detection: 20%
 - AgentProof unsafe-change detection: 100%
 
-Model time and token use can change with the computer. The recorded result is saved in
-`evaluation/results/recorded-evaluation.json`.
+Model time and token use can change with the computer. A new full run writes to ignored
+`artifacts/evaluation/latest-evaluation.json`; a selected-case run writes to
+`artifacts/evaluation/filtered-evaluation.json`. The committed result at
+`evaluation/results/recorded-evaluation.json` remains unchanged.
 
 ## Clean-copy relocation check (23 September 2026)
 

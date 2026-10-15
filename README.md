@@ -104,6 +104,9 @@ make phase3-smoke
 make evaluate
 ```
 
+New evaluation runs write to ignored `artifacts/evaluation/`; the committed result under
+`evaluation/results/` remains a fixed historical record.
+
 To try the two browser demos from a GitHub clone, run `make demo-setup` once. It creates fresh Git
 projects under ignored `artifacts/ui_demo_cases/` and leaves existing demo folders alone. Follow the
 [reproduction guide](docs/REPRODUCTION.md) to inspect, change, and verify them.
