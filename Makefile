@@ -28,7 +28,7 @@ setup:
 	$(UV_ENV) uv python install --no-bin $(PYTHON_VERSION)
 	$(UV_ENV) uv venv --python $(PYTHON_VERSION) $(VENV)
 	UV_CACHE_DIR="$(CURDIR)/.uv-cache" uv pip install --python $(PYTHON) -r requirements.txt
-	cd frontend && npm install
+	cd frontend && npm ci
 
 lock:
 	UV_CACHE_DIR="$(CURDIR)/.uv-cache" uv pip compile pyproject.toml --extra dev --output-file requirements.txt

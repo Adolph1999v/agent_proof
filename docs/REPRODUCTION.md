@@ -236,7 +236,7 @@ uv python install 3.12
 uv venv --python 3.12 .venv
 uv pip install --python .venv\Scripts\python.exe -r requirements.txt
 Set-Location frontend
-npm install
+npm ci
 Set-Location ..
 .\.venv\Scripts\python.exe scripts\prepare_ui_demos.py
 ```

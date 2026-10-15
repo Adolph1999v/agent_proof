@@ -70,7 +70,7 @@ def test_make_commands_use_local_paths_after_move_to_folder_with_spaces(
             "",
             "pip install --python .venv/bin/python -r requirements.txt",
         ],
-        ["npm", "", "", "install"],
+        ["npm", "", "", "ci"],
     ]
 
     python_bin = moved_project / ".venv" / "bin"
