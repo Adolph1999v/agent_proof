@@ -148,6 +148,43 @@ describe("DirectoryPicker", () => {
     );
   });
 
+  it("returns to the current folder when a subfolder cannot be opened", async () => {
+    const downloadsListing = {
+      current_path: "/Users/reviewer/Downloads",
+      parent_path: "/Users/reviewer",
+      directories: [],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(rootListing), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: "Permission denied" }), { status: 403 }),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify(downloadsListing), { status: 200 }));
+    const onSelect = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <DirectoryPicker
+        initialPath="/Users/reviewer"
+        onCancel={vi.fn()}
+        onSelect={onSelect}
+        open
+      />,
+    );
+
+    await screen.findByText("reviewer");
+    fireEvent.click(screen.getByRole("button", { name: "Open folder Projects" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Permission denied");
+    fireEvent.click(screen.getByRole("button", { name: "Return to previous folder" }));
+    expect(screen.getByRole("button", { name: "Open folder Downloads" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder Downloads" }));
+    await screen.findByText("Downloads");
+    fireEvent.click(screen.getByRole("button", { name: "Use this folder" }));
+    expect(onSelect).toHaveBeenCalledWith("/Users/reviewer/Downloads");
+  });
+
   it("closes on Escape and restores page scrolling", async () => {
     vi.stubGlobal(
       "fetch",

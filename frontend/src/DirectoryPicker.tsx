@@ -21,7 +21,7 @@ type DirectoryPickerProps = {
 type BrowserState =
   | { status: "loading" }
   | { status: "ready"; listing: DirectoryListing }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; previousListing?: DirectoryListing };
 
 export default function DirectoryPicker({
   initialPath,
@@ -34,7 +34,10 @@ export default function DirectoryPicker({
   const closeButton = useRef<HTMLButtonElement>(null);
   const requestSequence = useRef(0);
 
-  async function browse(path: string | null): Promise<boolean> {
+  async function browse(
+    path: string | null,
+    previousListing?: DirectoryListing,
+  ): Promise<boolean> {
     const requestId = ++requestSequence.current;
     setState({ status: "loading" });
     try {
@@ -56,6 +59,7 @@ export default function DirectoryPicker({
         setState({
           status: "error",
           message: error instanceof Error ? error.message : "Unable to browse this folder.",
+          previousListing,
         });
       }
     }
@@ -63,8 +67,9 @@ export default function DirectoryPicker({
   }
 
   async function navigate(path: string | null) {
-    const previousPath = state.status === "ready" ? state.listing.current_path : null;
-    if (await browse(path)) {
+    const previousListing = state.status === "ready" ? state.listing : undefined;
+    if (await browse(path, previousListing)) {
+      const previousPath = previousListing?.current_path;
       if (previousPath) setHistory((paths) => [...paths, previousPath]);
     }
   }
@@ -72,7 +77,7 @@ export default function DirectoryPicker({
   async function goBack() {
     const previousPath = history.at(-1);
     if (!previousPath) return;
-    if (await browse(previousPath)) {
+    if (await browse(previousPath, state.status === "ready" ? state.listing : undefined)) {
       setHistory((paths) => paths.slice(0, -1));
     }
   }
@@ -105,6 +110,7 @@ export default function DirectoryPicker({
     state.status === "ready"
       ? state.listing.current_path.split("/").filter(Boolean).at(-1) || "/"
       : "";
+  const previousListing = state.status === "error" ? state.previousListing : undefined;
 
   return (
     <div
@@ -206,6 +212,14 @@ export default function DirectoryPicker({
           <div className="directory-picker-message" role="alert">
             <strong>Folder unavailable</strong>
             <p>{state.message}</p>
+            {previousListing && (
+              <button
+                onClick={() => setState({ status: "ready", listing: previousListing })}
+                type="button"
+              >
+                Return to previous folder
+              </button>
+            )}
             <button onClick={() => void browse(null)} type="button">
               Open home folder
             </button>
